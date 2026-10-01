@@ -13,7 +13,9 @@ struct SelfTest {
             if cond() { print("  ✓ \(name)") } else { print("  ✗ \(name)"); failures.append(name) }
         }
         print("Island self-test")
-        env.start()
+        env.start(providers: false)
+        // Never touch real media apps / media keys from a test.
+        env.commands.media = { _, _ in }
         let island = env.island, manager = env.manager
         manager.schedulesExpiry = false
 

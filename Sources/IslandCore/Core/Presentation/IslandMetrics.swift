@@ -35,7 +35,7 @@ public struct IslandMetrics: Equatable, Sendable {
     public func wingWidth(_ style: CompactStyle) -> CGFloat {
         switch style {
         case .standard: (compactHeight + 32) * scale
-        case .wide: (compactHeight + 70) * scale
+        case .wide: (compactHeight + 84) * scale
         }
     }
 
@@ -87,7 +87,8 @@ public struct IslandMetrics: Equatable, Sendable {
 
     /// Fixed window size large enough for every state (window never resizes during animation).
     public var windowSize: CGSize {
-        let compactWide = notchSize.width + 2 * wingWidth(.wide) + 2 * (bubbleDiameter + bubbleSpacing) + 16
+        // Bubbles hang off the right side only, but the island is centred, so reserve them on both sides.
+        let compactWide = notchSize.width + 2 * wingWidth(.wide) + 4 * (bubbleDiameter + bubbleSpacing) + 24
         let w = max(searchWidth, expandedWidth, compactWide) + 80
         let h = max(searchMaxHeight, expandedHeight(.research)) + 40
         return CGSize(width: ceil(w), height: ceil(h))

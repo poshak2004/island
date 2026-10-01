@@ -1,1 +1,0 @@
-extension AppEnvironment { func showDebugPanel() {} }

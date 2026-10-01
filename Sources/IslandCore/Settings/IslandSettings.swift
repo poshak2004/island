@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-public struct KeyboardShortcut: Codable, Equatable, Sendable {
+public struct IslandShortcut: Codable, Equatable, Sendable {
     /// Carbon virtual key code.
     public var keyCode: UInt32
     /// Carbon modifier mask (cmdKey, optionKey, controlKey, shiftKey).
@@ -15,7 +15,7 @@ public struct KeyboardShortcut: Codable, Equatable, Sendable {
     }
 
     /// ⌥Space
-    public static let defaultSearch = KeyboardShortcut(keyCode: 49, carbonModifiers: 0x0800, display: "⌥Space")
+    public static let defaultSearch = IslandShortcut(keyCode: 49, carbonModifiers: 0x0800, display: "⌥Space")
 }
 
 public enum AIProviderKind: String, Codable, CaseIterable, Sendable {
@@ -57,7 +57,7 @@ public final class IslandSettings {
     public var browserMediaEnabled = false { didSet { save() } }
     // Search
     public var searchEnabled = true { didSet { save() } }
-    public var searchShortcut: KeyboardShortcut = .defaultSearch { didSet { save() } }
+    public var searchShortcut: IslandShortcut = .defaultSearch { didSet { save() } }
     public var webSearchEnabled = true { didSet { save() } }
     public var webSearchProviders: Set<String> = ["wikipedia", "duckduckgo"] { didSet { save() } }
     public var fileSearchEnabled = true { didSet { save() } }
@@ -105,7 +105,7 @@ public final class IslandSettings {
         var enabledKinds: [ActivityKind]?
         var browserMediaEnabled: Bool?
         var searchEnabled: Bool?
-        var searchShortcut: KeyboardShortcut?
+        var searchShortcut: IslandShortcut?
         var webSearchEnabled: Bool?
         var webSearchProviders: [String]?
         var fileSearchEnabled: Bool?

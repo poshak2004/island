@@ -13,7 +13,7 @@ func registerSettingsTests() {
         s.hoverExpansion = false
         s.enabledKinds = [.media]
         s.display = .specific(name: "LG")
-        s.searchShortcut = KeyboardShortcut(keyCode: 1, carbonModifiers: 256, display: "⌘S")
+        s.searchShortcut = IslandShortcut(keyCode: 1, carbonModifiers: 256, display: "⌘S")
         let r = IslandSettings(defaults: d)
         expectEqual(r.glassIntensity, 0.25)
         expectEqual(r.hoverExpansion, false)

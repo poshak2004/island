@@ -27,11 +27,30 @@ final class DebugRemote {
                 case "critical": env.manager.submit(.upsert(DebugActivities.criticalEvent()))
                 case "battery": env.manager.submit(.upsert(DebugActivities.battery()))
                 case "clear": env.manager.removeAll()
+                case "dump": DebugRemote.dump(env)
                 default:
                     if cmd.hasPrefix("query:") { env.search.query = String(cmd.dropFirst(6)) }
                 }
             }
         }
+    }
+}
+extension DebugRemote {
+    /// Writes a state snapshot to $TMPDIR/island-debug.txt for scripted QA.
+    static func dump(_ env: AppEnvironment) {
+        var lines: [String] = []
+        lines.append("mode=\(env.island.mode.rawValue) size=\(env.island.islandSize)")
+        lines.append("primary=\(env.manager.primary.map { "\($0.id) \($0.priority)" } ?? "none")")
+        lines.append("secondaries=\(env.manager.secondaries.map(\.id))")
+        if case .media(let m)? = env.manager.activity(id: "media")?.content {
+            lines.append("media=\(m.sourceName) | \(m.title) | \(m.artist) | \(m.playbackState) | artwork=\(m.artwork?.count ?? 0)B | pos=\(m.elapsed ?? -1)/\(m.duration ?? -1)")
+        }
+        lines.append("mediaSources=\(env.media.states.keys.sorted()) current=\(env.media.currentSource ?? "none") error=\(env.media.lastError ?? "none")")
+        lines.append("geometry=\(String(describing: env.island.geometry?.notchRect)) notch=\(env.island.geometry?.hasNotch ?? false)")
+        lines.append("window=\(env.window.panel.frame) ignoresMouse=\(env.window.panel.ignoresMouseEvents)")
+        for e in env.manager.log.suffix(15) { lines.append("log: \(e.message)") }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("island-debug.txt")
+        try? lines.joined(separator: "\n").write(to: url, atomically: true, encoding: .utf8)
     }
 }
 #endif

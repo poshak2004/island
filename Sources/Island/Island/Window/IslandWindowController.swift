@@ -77,7 +77,9 @@ final class IslandWindowController {
         }) { monitors.append(m) }
         if let m = NSEvent.addLocalMonitorForEvents(matching: [.keyDown], handler: { [weak self] e in
             guard let self else { return e }
-            return MainActor.assumeIsolated { self.handleKey(e) ? nil : e }
+            nonisolated(unsafe) let event = e
+            let consumed = MainActor.assumeIsolated { self.handleKey(event) }
+            return consumed ? nil : e
         }) { monitors.append(m) }
     }
 
