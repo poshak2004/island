@@ -77,6 +77,19 @@ final class IslandViewModel {
     var reduceTransparency: Bool { settings.forceReduceTransparency || accessibility.reduceTransparency }
     var highContrast: Bool { settings.forceHighContrast || accessibility.increaseContrast }
 
+    /// Everything the Core Animation surface needs to draw the current state.
+    var surfaceGeometry: IslandSurfaceView.Geometry {
+        let m = metrics, size = islandSize
+        let ear = m.topEarRadius(mode: mode)
+        let open = mode == .expanded || mode == .search
+        let compactGlass = mode == .compact && settings.compactGlass
+        let glass = reduceTransparency ? 0 : (open || compactGlass ? settings.glassIntensity : 0)
+        return IslandSurfaceView.Geometry(
+            width: size.width + 2 * ear, height: max(size.height, 0.5), earRadius: ear,
+            bottomRadius: m.bottomCornerRadius(mode: mode, height: size.height), offsetX: horizontalOffset,
+            glass: glass, clearGlass: compactGlass, visible: mode != .idle || m.hasNotch, highContrast: highContrast)
+    }
+
     var morphAnimation: Animation { IslandAnimation.morph(reduceMotion: reduceMotion, speed: settings.animationSpeed) }
 
     /// Window-local hit rect (anchor-relative, y downward).
@@ -143,10 +156,9 @@ final class IslandViewModel {
         note("\(input) → \(next.mode.rawValue)\(modeChanged ? "" : " (same)")")
         let opening = !presentation.isExpanded && next.isExpanded
         let closing = presentation.isExpanded && !next.isExpanded
-        let animation = opening ? IslandAnimation.expand(reduceMotion: reduceMotion, speed: settings.animationSpeed)
-            : closing ? IslandAnimation.collapse(reduceMotion: reduceMotion, speed: settings.animationSpeed)
-            : morphAnimation
-        withAnimation(animation) { presentation = next }
+        _ = (opening, closing)
+        // The outline springs in Core Animation (IslandSurfaceView); SwiftUI only fades content.
+        withAnimation(IslandAnimation.contentChange(reduceMotion: reduceMotion)) { presentation = next }
         if modeChanged {
             transitionCount += 1
             markAnimating()

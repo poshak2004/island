@@ -22,10 +22,8 @@ struct IslandBackground: View {
             }
             shape.fill(Color.black.opacity(clear ? 0.42 - glass * 0.2 : 1 - glass * 0.45))
             if glass > 0.001 {
-                // Subtle top-down sheen for depth.
-                shape.fill(LinearGradient(colors: [.white.opacity(0.10 * glass), .clear], startPoint: .bottom, endPoint: .center))
-                shape.stroke(LinearGradient(colors: [.white.opacity(0.28 * glass), .white.opacity(0.05 * glass)],
-                                            startPoint: .bottom, endPoint: .top), lineWidth: 0.8)
+                // A single hairline edge — the glass itself provides the depth.
+                shape.stroke(.white.opacity(0.14 * glass), lineWidth: 0.75)
             }
             if highContrast {
                 shape.stroke(Color.white.opacity(0.85), lineWidth: 1.5)

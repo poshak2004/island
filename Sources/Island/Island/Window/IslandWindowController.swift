@@ -7,6 +7,9 @@ import SwiftUI
 @MainActor
 final class IslandWindowController {
     let panel = IslandPanel()
+    /// Core Animation surface (outline, glass, clip, morph). SwiftUI content lives inside it.
+    let surface: IslandSurfaceView
+    private var lastSurfaceMode: IslandMode = .idle
     let model: IslandViewModel
     let search: SearchViewModel
     private var monitors: [Any] = []
@@ -28,8 +31,11 @@ final class IslandWindowController {
         self.search = search
         let host = IslandHostingView(rootView: IslandRootView(model: model, search: search).ignoresSafeArea())
         host.sizingOptions = []
-        panel.contentView = host
+        surface = IslandSurfaceView(contentHost: host)
+        panel.contentView = surface
         model.onModeChange = { [weak self] mode in self?.modeChanged(mode) }
+        lastSurfaceMode = model.mode
+        observeSurface()
     }
 
     // MARK: Visibility
@@ -161,6 +167,24 @@ final class IslandWindowController {
             return true
         }
         return model.mode == .search ? search.handleKey(e) : false
+    }
+
+    // MARK: Surface
+
+    /// Re-applies the surface geometry whenever anything it depends on changes, choosing the spring
+    /// from the kind of change (opening, closing or an in-place morph).
+    private func observeSurface() {
+        let geometry = withObservationTracking { model.surfaceGeometry } onChange: { [weak self] in
+            DispatchQueue.main.async { self?.observeSurface() }
+        }
+        let mode = model.mode
+        let wasOpen = lastSurfaceMode == .expanded || lastSurfaceMode == .search
+        let isOpen = mode == .expanded || mode == .search
+        let motion: IslandSurfaceView.Motion = !wasOpen && isOpen ? .open : (wasOpen && !isOpen ? .close : .morph)
+        lastSurfaceMode = mode
+        surface.reduceMotion = model.reduceMotion
+        surface.speed = model.settings.animationSpeed
+        if surface.current != geometry { surface.apply(geometry, motion: motion) }
     }
 
     // MARK: Mode changes

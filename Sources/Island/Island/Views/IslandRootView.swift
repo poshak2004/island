@@ -1,79 +1,82 @@
 import IslandCore
 import SwiftUI
 
-/// The one and only Island surface. Every state is the same view tree morphing — size, corner radii,
-/// material and content all animate together from a single state change.
+/// The Island's SwiftUI content. The surface itself — outline, glass, clip and the open/close
+/// morph — is `IslandSurfaceView` (Core Animation), so this view is laid out at its final size and
+/// never re-laid-out frame by frame while the Island springs.
 struct IslandRootView: View {
     let model: IslandViewModel
     let search: SearchViewModel
-    @Namespace private var ns
 
     var body: some View {
         let metrics = model.metrics
         let mode = model.mode
-        let size = model.islandSize
-        let ear = metrics.topEarRadius(mode: mode)
-        let shape = IslandShape(earRadius: ear, bottomRadius: metrics.bottomCornerRadius(mode: mode, height: size.height))
-        let open = mode == .expanded || mode == .search
-        // Compact uses see-through glass (setting) so the Island doesn't read as a black slab over the menu bar.
-        let compactGlass = mode == .compact && model.settings.compactGlass
-        let glass = open || compactGlass ? model.settings.glassIntensity : 0
+        let canvas = metrics.windowSize
 
-        ZStack(alignment: .top) {
-            IslandBackground(shape: shape, glassAmount: glass, clear: compactGlass,
-                             reduceTransparency: model.reduceTransparency, highContrast: model.highContrast)
-                .opacity(mode == .idle ? (metrics.hasNotch ? 1 : 0) : 1)
-            content(metrics: metrics, size: size)
-                .frame(width: size.width, height: size.height, alignment: .top)
-                .clipShape(shape.inset(ear: ear))
-        }
-        .frame(width: size.width + 2 * ear, height: max(size.height, 0.5))
-        .contentShape(shape)
-        .onTapGesture { model.click() }
-        .offset(x: model.horizontalOffset)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Island")
-        .accessibilityAddTraits(mode == .compact ? .isButton : [])
-        .accessibilityAction(named: mode == .expanded ? "Collapse" : "Expand") {
-            mode == .expanded ? model.collapse() : model.expand()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .environment(\.islandNamespace, ns)
-        .environment(\.islandReduceMotion, model.reduceMotion)
-        .environment(\.airPodsRevealed, model.airPods.map { $0.phase == .idle || $0.isRevealed } ?? true)
-        .environment(\.islandCommands, IslandCommandSink { [weak model] c in model?.commands.perform(c) })
-        .environment(\.colorScheme, .dark)
-        .animation(model.morphAnimation, value: model.manager.primary?.id)
-        .animation(model.morphAnimation, value: model.manager.secondaries.map(\.id))
+        content(metrics: metrics, size: model.islandSize)
+            .offset(x: mode == .compact ? model.horizontalOffset : 0)
+            .frame(width: canvas.width, height: canvas.height, alignment: .top)
+            // Clicks only reach this window inside the Island (the rest is click-through).
+            .contentShape(Rectangle())
+            .onTapGesture { model.click() }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Island")
+            .accessibilityAddTraits(mode == .compact ? .isButton : [])
+            .accessibilityAction(named: mode == .expanded ? "Collapse" : "Expand") {
+                mode == .expanded ? model.collapse() : model.expand()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            // No shared matched-geometry namespace: compact and expanded are both mounted and crossfade,
+            // and duplicate matched IDs in mounted views would misplace content.
+            .environment(\.islandReduceMotion, model.reduceMotion)
+            .environment(\.airPodsRevealed, model.airPods.map { $0.phase == .idle || $0.isRevealed } ?? true)
+            .environment(\.islandCommands, IslandCommandSink { [weak model] c in model?.commands.perform(c) })
+            .environment(\.colorScheme, .dark)
+            .animation(IslandAnimation.contentChange(reduceMotion: model.reduceMotion), value: model.manager.primary?.id)
+            .animation(IslandAnimation.contentChange(reduceMotion: model.reduceMotion), value: model.manager.secondaries.map(\.id))
     }
 
+    /// Compact and expanded stay mounted and crossfade, so opening never builds views mid-animation
+    /// (that's what dropped frames). Hidden layers don't take clicks, aren't announced by VoiceOver,
+    /// and their once-per-second clocks pause (`islandContentActive`).
     @ViewBuilder
     private func content(metrics: IslandMetrics, size: CGSize) -> some View {
-        let transition = IslandAnimation.contentTransition(reduceMotion: model.reduceMotion)
-        switch model.mode {
-        case .idle:
-            Color.clear
-        case .compact:
+        let mode = model.mode
+        let reduce = model.reduceMotion
+        ZStack(alignment: .top) {
             if let primary = model.primary {
-                CompactLayout(activity: primary, minimals: model.minimals, metrics: metrics, style: model.compactStyle,
-                              showsTitle: model.settings.compactShowsTitle)
-                    .transition(transition)
+                let compactShown = mode == .compact
+                CompactLayout(activity: primary, minimals: Array(model.secondaries.prefix(IslandMetrics.maxMinimals)),
+                              metrics: metrics, style: model.compactStyle, showsTitle: model.settings.compactShowsTitle)
+                    .offset(x: metrics.horizontalOffset(mode: .compact, compact: model.compactStyle,
+                                                        minimals: min(model.secondaries.count, IslandMetrics.maxMinimals)))
                     .id("compact-\(primary.id)")
+                    .environment(\.islandContentActive, compactShown)
+                    .layer(shown: compactShown, delay: 0.1, reduceMotion: reduce)
             }
-        case .expanded:
             ExpandedLayout(model: model, metrics: metrics)
-                .transition(transition)
-        case .search:
-            SearchSurface(model: search, metrics: metrics)
-                .transition(transition)
+                .frame(width: metrics.expandedWidth)
+                .environment(\.islandContentActive, mode == .expanded)
+                .layer(shown: mode == .expanded, delay: 0.1, reduceMotion: reduce)
+            if mode == .search {
+                SearchSurface(model: search, metrics: metrics)
+                    .frame(width: metrics.searchWidth, height: size.height, alignment: .top)
+                    .transition(IslandAnimation.contentTransition(reduceMotion: reduce))
+            }
         }
     }
 }
 
-private extension IslandShape {
-    /// Content clip: the body without the ears.
-    func inset(ear: CGFloat) -> some Shape {
-        IslandShape(earRadius: 0, bottomRadius: bottomRadius)
+private extension View {
+    /// Crossfade a mounted layer: leaving is quick, arriving waits for the glass to mostly open.
+    func layer(shown: Bool, delay: Double, reduceMotion: Bool) -> some View {
+        self
+            .opacity(shown ? 1 : 0)
+            .scaleEffect(shown || reduceMotion ? 1 : 0.97, anchor: .top)
+            .allowsHitTesting(shown)
+            .accessibilityHidden(!shown)
+            .animation(shown ? .easeOut(duration: reduceMotion ? 0.15 : 0.24).delay(reduceMotion ? 0 : delay)
+                             : .easeIn(duration: reduceMotion ? 0.1 : 0.08), value: shown)
     }
 }
 

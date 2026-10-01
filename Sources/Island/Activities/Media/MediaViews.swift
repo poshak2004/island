@@ -141,9 +141,10 @@ struct MediaProgress: View {
     let media: MediaActivity
     var onSeek: (TimeInterval) -> Void
     @State private var dragFraction: Double?
+    @Environment(\.islandContentActive) private var active
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: media.playbackState == .playing ? 1 : 3600)) { context in
+        TimelineView(.periodic(from: .now, by: clockInterval(active: active, running: media.playbackState == .playing))) { context in
             let position = media.position(at: context.date)
             let duration = media.duration
             let fraction = dragFraction ?? {

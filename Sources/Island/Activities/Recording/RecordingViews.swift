@@ -18,8 +18,9 @@ struct RecordingCompactLeading: View {
 
 struct RecordingCompactTrailing: View {
     let recording: RecordingActivity
+    @Environment(\.islandContentActive) private var active
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { ctx in
+        TimelineView(.periodic(from: .now, by: clockInterval(active: active))) { ctx in
             Text(DurationFormatter.clock(ctx.date.timeIntervalSince(recording.startedAt)))
                 .font(.system(size: 12.5, weight: .semibold).monospacedDigit())
                 .foregroundStyle(IslandPalette.recording)
@@ -31,8 +32,9 @@ struct RecordingExpanded: View {
     let recording: RecordingActivity
     let id: String
     @Environment(\.islandNamespace) private var ns
+    @Environment(\.islandContentActive) private var active
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { ctx in
+        TimelineView(.periodic(from: .now, by: clockInterval(active: active))) { ctx in
             HStack(spacing: 14) {
                 Image(systemName: recording.camera ? "video.fill" : "mic.fill")
                     .font(.system(size: 22, weight: .semibold)).foregroundStyle(IslandPalette.recording)

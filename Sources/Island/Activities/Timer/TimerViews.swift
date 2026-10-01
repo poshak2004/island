@@ -4,9 +4,10 @@ import SwiftUI
 private struct TimerClock<Content: View>: View {
     let timer: TimerActivity
     @ViewBuilder var content: (Date) -> Content
+    @Environment(\.islandContentActive) private var active
     var body: some View {
         if case .running = timer.state {
-            TimelineView(.periodic(from: .now, by: 1)) { ctx in content(ctx.date) }
+            TimelineView(.periodic(from: .now, by: clockInterval(active: active))) { ctx in content(ctx.date) }
         } else {
             content(Date())
         }

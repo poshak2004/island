@@ -7,6 +7,7 @@ import SwiftUI
 private struct IslandNamespaceKey: EnvironmentKey { static let defaultValue: Namespace.ID? = nil }
 private struct IslandCommandsKey: EnvironmentKey { static let defaultValue: IslandCommandSink = IslandCommandSink { _ in } }
 private struct IslandReduceMotionKey: EnvironmentKey { static let defaultValue = false }
+private struct IslandContentActiveKey: EnvironmentKey { static let defaultValue = true }
 
 /// Lightweight value wrapper so views can emit commands without knowing the router type.
 struct IslandCommandSink: Sendable {
@@ -23,6 +24,11 @@ extension EnvironmentValues {
     var islandCommands: IslandCommandSink {
         get { self[IslandCommandsKey.self] }
         set { self[IslandCommandsKey.self] = newValue }
+    }
+    /// False while a layer is mounted but hidden; per-second clocks inside it pause.
+    var islandContentActive: Bool {
+        get { self[IslandContentActiveKey.self] }
+        set { self[IslandContentActiveKey.self] = newValue }
     }
     var islandReduceMotion: Bool {
         get { self[IslandReduceMotionKey.self] }
@@ -191,3 +197,6 @@ enum Formatters {
         return f
     }()
 }
+
+/// Seconds between clock ticks: 1 s while visible, effectively paused while hidden.
+func clockInterval(active: Bool, running: Bool = true) -> TimeInterval { active && running ? 1 : 3600 }

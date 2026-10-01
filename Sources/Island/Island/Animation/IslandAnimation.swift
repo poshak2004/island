@@ -3,6 +3,11 @@ import SwiftUI
 /// Single place for Island motion. Springs are interruptible: retargeting mid-flight preserves velocity,
 /// so hovering in/out quickly never "restarts" the morph.
 enum IslandAnimation {
+    /// SwiftUI only animates *content* now (Core Animation owns the outline spring), so this is short.
+    static func contentChange(reduceMotion: Bool) -> Animation {
+        reduceMotion ? .easeInOut(duration: 0.15) : .easeOut(duration: 0.24)
+    }
+
     /// General morph (activity changes, resizes).
     static func morph(reduceMotion: Bool, speed: Double) -> Animation {
         if reduceMotion { return .easeInOut(duration: 0.18) }
@@ -35,7 +40,13 @@ enum IslandAnimation {
     /// also sharpens from a light blur and grows from the top edge, like the iPhone island.
     static func contentTransition(reduceMotion: Bool) -> AnyTransition {
         if reduceMotion { return .opacity }
-        return .modifier(active: MorphContent(progress: 0), identity: MorphContent(progress: 1))
+        // Built-in, render-only effects (no per-frame body evaluation). Removal is quick, insertion waits
+        // for it, so compact and expanded never overlap.
+        return .asymmetric(
+            insertion: .opacity.combined(with: .scale(scale: 0.96, anchor: .top))
+                .animation(.easeOut(duration: 0.24).delay(0.1)),
+            removal: .opacity.combined(with: .scale(scale: 0.98, anchor: .top))
+                .animation(.easeIn(duration: 0.08)))
     }
 }
 
@@ -54,7 +65,6 @@ struct MorphContent: ViewModifier, Animatable {
         let opacity = max(0, (p - 0.5) / 0.5)
         content
             .opacity(opacity)
-            .blur(radius: (1 - p) * 8)
             .scaleEffect(0.9 + 0.1 * p, anchor: .top)
     }
 }
