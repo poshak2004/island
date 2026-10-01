@@ -8,6 +8,8 @@ struct IslandBackground: View {
     var shape: IslandShape
     /// 0 = solid black, 1 = full glass.
     var glassAmount: Double
+    /// Lighter, more see-through glass (compact).
+    var clear = false
     var reduceTransparency: Bool
     var highContrast: Bool
 
@@ -15,10 +17,10 @@ struct IslandBackground: View {
         let glass = reduceTransparency ? 0 : max(0, min(1, glassAmount))
         ZStack {
             if glass > 0.001 {
-                GlassLayer(shape: shape)
+                GlassLayer(shape: shape, clear: clear)
                     .opacity(min(1, glass * 1.6))
             }
-            shape.fill(Color.black.opacity(1 - glass * 0.45))
+            shape.fill(Color.black.opacity(clear ? 0.42 - glass * 0.2 : 1 - glass * 0.45))
             if glass > 0.001 {
                 // Subtle top-down sheen for depth.
                 shape.fill(LinearGradient(colors: [.white.opacity(0.10 * glass), .clear], startPoint: .bottom, endPoint: .center))
@@ -35,9 +37,10 @@ struct IslandBackground: View {
 /// Liquid Glass on macOS 26+, behind-window vibrancy on earlier systems.
 private struct GlassLayer: View {
     var shape: IslandShape
+    var clear = false
     var body: some View {
         if #available(macOS 26, *) {
-            Color.clear.glassEffect(.regular.tint(.black.opacity(0.25)), in: shape)
+            Color.clear.glassEffect(clear ? .clear.tint(.black.opacity(0.18)) : .regular.tint(.black.opacity(0.25)), in: shape)
         } else {
             VisualEffectBackground(material: .hudWindow).clipShape(shape)
         }

@@ -27,6 +27,11 @@ final class DebugRemote {
                 case "critical": env.manager.submit(.upsert(DebugActivities.criticalEvent()))
                 case "battery": env.manager.submit(.upsert(DebugActivities.battery()))
                 case "clear": env.manager.removeAll()
+                case "airpods", "airpodspro", "headphones":
+                    let name = cmd == "airpods" ? "AirPods" : cmd == "airpodspro" ? "Poshak's AirPods Pro" : "WH-1000XM5"
+                    env.manager.submit(.upsert(Activity(id: "device", kind: .device, priority: .high,
+                        content: .device(DeviceActivity(name: name, type: .headphones, connected: true)), expiresAt: Date().addingTimeInterval(5))))
+                    env.bus.publish(.deviceConnected(name: name))
                 case "dump": DebugRemote.dump(env)
                 case "settings": env.commands.perform(.openSettings)
                 case "debugpanel": env.showDebugPanel()

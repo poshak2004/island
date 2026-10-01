@@ -28,11 +28,33 @@ enum IslandAnimation {
     }
 
     /// Insert/removal transition for content inside the morphing surface.
+    ///
+    /// It carries no animation of its own, so content moves on the *same* spring as the Island's outline.
+    /// Opacity is phased on that shared progress: outgoing content is fully gone by the halfway point and
+    /// incoming content only starts appearing after it, so compact and expanded never overlap. Content
+    /// also sharpens from a light blur and grows from the top edge, like the iPhone island.
     static func contentTransition(reduceMotion: Bool) -> AnyTransition {
         if reduceMotion { return .opacity }
-        return .asymmetric(
-            insertion: .opacity.combined(with: .scale(scale: 0.9, anchor: .top)).animation(.spring(response: 0.32, dampingFraction: 0.88).delay(0.05)),
-            removal: .opacity.combined(with: .scale(scale: 0.95, anchor: .top)).animation(.easeOut(duration: 0.1))
-        )
+        return .modifier(active: MorphContent(progress: 0), identity: MorphContent(progress: 1))
+    }
+}
+
+/// Animatable content-morph state; `progress` 0 = hidden, 1 = settled.
+struct MorphContent: ViewModifier, Animatable {
+    var progress: Double
+
+    var animatableData: Double {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        let p = min(1, max(0, progress))
+        // Visible only in the second half of the shared spring.
+        let opacity = max(0, (p - 0.5) / 0.5)
+        content
+            .opacity(opacity)
+            .blur(radius: (1 - p) * 8)
+            .scaleEffect(0.9 + 0.1 * p, anchor: .top)
     }
 }

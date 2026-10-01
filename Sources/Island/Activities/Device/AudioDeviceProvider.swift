@@ -56,8 +56,9 @@ final class AudioDeviceProvider {
         } else {
             return
         }
+        // Linger a little longer than the automatic presentation so the card never vanishes mid-animation.
         sink(.upsert(Activity(id: "device", kind: .device, priority: .high, content: .device(activity),
-                              expiresAt: Date().addingTimeInterval(3.5))))
+                              expiresAt: Date().addingTimeInterval(activity.connected ? 5 : 3))))
     }
 
     static func type(name: String, transport: UInt32) -> DeviceActivity.DeviceType {

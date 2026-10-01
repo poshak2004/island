@@ -4,10 +4,11 @@ import SwiftUI
 /// Maps an activity to its compact / minimal / expanded representation. Adding a new activity type
 /// means adding a case here and a view file under Activities/ — the Island itself doesn't change.
 enum ActivityPresentation {
-    static func compactStyle(for a: Activity?) -> CompactStyle {
+    static func compactStyle(for a: Activity?, showsTitle: Bool = false) -> CompactStyle {
         guard let a else { return .standard }
         switch a.content {
-        case .media, .device, .calendar, .clipboard, .event, .network: return .wide
+        case .media: return showsTitle ? .wide : .standard
+        case .device, .calendar, .clipboard, .event, .network: return .wide
         default: return .standard
         }
     }
@@ -18,7 +19,8 @@ enum ActivityPresentation {
         case .media: return .media
         case .timer: return .timer
         case .download: return .download
-        case .recording, .battery, .network, .device, .calendar, .clipboard, .event: return .event
+        case .device: return .device
+        case .recording, .battery, .network, .calendar, .clipboard, .event: return .event
         }
     }
 
@@ -40,9 +42,10 @@ enum ActivityPresentation {
 
 struct CompactLeadingView: View {
     let activity: Activity
+    var showsTitle = false
     var body: some View {
         switch activity.content {
-        case .media(let m): MediaCompactLeading(media: m)
+        case .media(let m): MediaCompactLeading(media: m, showTitle: showsTitle)
         case .timer(let t): TimerCompactLeading(timer: t, id: activity.id)
         case .download(let d): DownloadCompactLeading(download: d, id: activity.id)
         case .recording(let r): RecordingCompactLeading(recording: r, id: activity.id)
@@ -66,7 +69,7 @@ struct CompactTrailingView: View {
         case .recording(let r): RecordingCompactTrailing(recording: r)
         case .battery(let b): BatteryCompactTrailing(battery: b)
         case .network(let n): CompactTrailingText(text: n.connected ? "On" : "Off", tint: IslandPalette.network)
-        case .device(let d): CompactTrailingText(text: d.connected ? "On" : "Off", tint: .white)
+        case .device(let d): DeviceCompactTrailing(device: d)
         case .calendar(let c): CalendarCompactTrailing(event: c)
         case .clipboard: CompactTrailingText(text: "Copied", tint: IslandPalette.secondaryText)
         case .event(let e): CompactTrailingText(text: e.subtitle ?? "", tint: IslandPalette.secondaryText)
@@ -107,7 +110,7 @@ struct ExpandedActivityView: View {
         case .recording(let r): RecordingExpanded(recording: r, id: activity.id)
         case .battery(let b): BatteryExpanded(battery: b, id: activity.id)
         case .network(let n): EventLikeExpanded(symbol: NetworkPresentation.symbol(n), tint: IslandPalette.network, title: NetworkPresentation.title(n), subtitle: NetworkPresentation.subtitle(n), id: activity.id)
-        case .device(let d): EventLikeExpanded(symbol: DevicePresentation.symbol(d), tint: .white, title: d.name, subtitle: d.connected ? "Connected" : "Disconnected", id: activity.id)
+        case .device(let d): DeviceConnectedView(device: d, id: activity.id)
         case .calendar(let c): CalendarExpanded(event: c, id: activity.id)
         case .clipboard(let c): EventLikeExpanded(symbol: "doc.on.clipboard", tint: .white, title: "Copied to clipboard", subtitle: c.preview, id: activity.id)
         case .event(let e): EventLikeExpanded(symbol: e.symbol, tint: IslandPalette.hex(e.tintHex) ?? .white, title: e.title, subtitle: e.subtitle, id: activity.id)

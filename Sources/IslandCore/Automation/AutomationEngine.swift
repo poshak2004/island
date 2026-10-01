@@ -43,6 +43,7 @@ public struct AutomationRule: Codable, Identifiable, Equatable, Sendable {
     public static let defaults: [AutomationRule] = [
         AutomationRule(name: "Battery below 20% → show Island", trigger: .batteryBelow(percent: 20), actions: [.presentIsland(seconds: 4)]),
         AutomationRule(name: "Download completed → show Island", trigger: .downloadCompleted, actions: [.presentIsland(seconds: 3)]),
+        AutomationRule(name: "AirPods / headphones connected → show Island", trigger: .deviceConnected, actions: [.presentIsland(seconds: 4.5)]),
         AutomationRule(name: "Music started → show media", trigger: .mediaStarted, enabled: false, actions: [.presentIsland(seconds: 3)]),
     ]
 

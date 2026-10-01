@@ -45,9 +45,15 @@ public final class IslandSettings {
     public var glassIntensity: Double = 0.6 { didSet { save() } }
     public var islandScale: Double = 1.0 { didSet { save() } }
     public var cornerRadius: Double = 32 { didSet { save() } }
+    /// Compact Island background: see-through glass (default) or solid black like the hardware notch.
+    public var compactGlass = true { didSet { save() } }
+    /// Show the song title next to the artwork in the compact Island (wider; covers more menu bar).
+    public var compactShowsTitle = false { didSet { save() } }
     // Behavior
     public var hoverExpansion = true { didSet { save() } }
     public var hoverDelay: Double = 0.06 { didSet { save() } }
+    /// How long the Island stays open after the pointer leaves it.
+    public var collapseDelay: Double = 0.7 { didSet { save() } }
     public var autoCollapse = true { didSet { save() } }
     public var autoCollapseDelay: Double = 4 { didSet { save() } }
     public var animationSpeed: Double = 1.0 { didSet { save() } }
@@ -96,6 +102,9 @@ public final class IslandSettings {
         var glassIntensity: Double?
         var islandScale: Double?
         var cornerRadius: Double?
+        var compactGlass: Bool?
+        var compactShowsTitle: Bool?
+        var collapseDelay: Double?
         var hoverExpansion: Bool?
         var hoverDelay: Double?
         var autoCollapse: Bool?
@@ -122,7 +131,8 @@ public final class IslandSettings {
 
     func snapshot() -> Snapshot {
         Snapshot(islandEnabled: islandEnabled, launchAtLogin: launchAtLogin, display: display, glassIntensity: glassIntensity,
-                 islandScale: islandScale, cornerRadius: cornerRadius, hoverExpansion: hoverExpansion, hoverDelay: hoverDelay,
+                 islandScale: islandScale, cornerRadius: cornerRadius, compactGlass: compactGlass,
+                 compactShowsTitle: compactShowsTitle, collapseDelay: collapseDelay, hoverExpansion: hoverExpansion, hoverDelay: hoverDelay,
                  autoCollapse: autoCollapse, autoCollapseDelay: autoCollapseDelay, animationSpeed: animationSpeed,
                  hapticFeedback: hapticFeedback, enabledKinds: enabledKinds.map { $0 }.sorted { $0.rawValue < $1.rawValue },
                  browserMediaEnabled: browserMediaEnabled, searchEnabled: searchEnabled, searchShortcut: searchShortcut,
@@ -139,6 +149,9 @@ public final class IslandSettings {
         if let v = s.glassIntensity { glassIntensity = min(1, max(0, v)) }
         if let v = s.islandScale { islandScale = min(1.3, max(0.8, v)) }
         if let v = s.cornerRadius { cornerRadius = min(48, max(12, v)) }
+        if let v = s.compactGlass { compactGlass = v }
+        if let v = s.compactShowsTitle { compactShowsTitle = v }
+        if let v = s.collapseDelay { collapseDelay = min(3, max(0.1, v)) }
         if let v = s.hoverExpansion { hoverExpansion = v }
         // 0.12 was the previous default; move untouched installs to the snappier one.
         if let v = s.hoverDelay { hoverDelay = v == 0.12 ? 0.06 : min(1, max(0, v)) }

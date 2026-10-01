@@ -90,11 +90,13 @@ private struct AppearanceSettings: View {
                 LabeledContent("Island size") {
                     HStack { Slider(value: $settings.islandScale, in: 0.8...1.3); Text("\(Int(settings.islandScale * 100))%").monospacedDigit().frame(width: 40) }
                 }
+                Toggle("See-through compact Island", isOn: $settings.compactGlass)
+                Toggle("Show song title in compact Island", isOn: $settings.compactShowsTitle)
                 LabeledContent("Corner radius") {
                     HStack { Slider(value: $settings.cornerRadius, in: 12...48); Text("\(Int(settings.cornerRadius))").monospacedDigit().frame(width: 40) }
                 }
             } footer: {
-                Text("Compact states stay solid black so the Island blends into the notch. Glass applies to the expanded surface. Liquid Glass is used on macOS 26 and later.")
+                Text("Glass intensity controls how see-through the Island is. The empty Island stays black so it disappears into the notch. Liquid Glass is used on macOS 26 and later.")
             }
         }
         .formStyle(.grouped)
@@ -110,6 +112,9 @@ private struct BehaviorSettings: View {
                 LabeledContent("Hover delay") {
                     HStack { Slider(value: $settings.hoverDelay, in: 0...0.6); Text(String(format: "%.2fs", settings.hoverDelay)).monospacedDigit().frame(width: 48) }
                 }
+            }
+            LabeledContent("Stay open after pointer leaves") {
+                HStack { Slider(value: $settings.collapseDelay, in: 0.1...2); Text(String(format: "%.1fs", settings.collapseDelay)).monospacedDigit().frame(width: 48) }
             }
             Toggle("Auto-collapse after clicking", isOn: $settings.autoCollapse)
             if settings.autoCollapse {

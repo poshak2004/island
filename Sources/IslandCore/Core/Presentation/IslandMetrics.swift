@@ -11,7 +11,7 @@ public enum CompactStyle: Equatable, Sendable {
 
 /// Content-driven expanded heights.
 public enum ExpandedStyle: Equatable, Sendable {
-    case home, media, timer, download, event, research
+    case home, media, timer, download, event, device, research
 }
 
 /// All Island geometry, derived from the notch. Nothing here is hard-coded to a screen.
@@ -29,14 +29,31 @@ public struct IslandMetrics: Equatable, Sendable {
     }
 
     public var compactHeight: CGFloat { notchSize.height }
-    public var bubbleDiameter: CGFloat { compactHeight }
-    public var bubbleSpacing: CGFloat { 6 }
+    /// Width each secondary ("minimal") activity adds inside the trailing wing.
+    public var minimalSlot: CGFloat { 22 * scale }
+    public static let maxMinimals = 2
 
+    /// iPhone-sized wings: just enough for one glyph each side, so the Island covers as little of the
+    /// menu bar as possible. `.wide` is used for short-lived events that need a few words.
     public func wingWidth(_ style: CompactStyle) -> CGFloat {
         switch style {
-        case .standard: (compactHeight + 32) * scale
+        case .standard: (compactHeight + 12) * scale
         case .wide: (compactHeight + 100) * scale
         }
+    }
+
+    /// Leading/trailing wing widths. Secondary activities sit inside the trailing wing (not floating over
+    /// the menu bar), so the wings can differ; `horizontalOffset` keeps the notch gap on the notch.
+    public func compactWings(_ style: CompactStyle, minimals: Int) -> (leading: CGFloat, trailing: CGFloat) {
+        let base = wingWidth(style)
+        let n = CGFloat(min(max(0, minimals), Self.maxMinimals))
+        return (base, base + (n > 0 ? n * minimalSlot + 6 * scale : 0))
+    }
+
+    public func horizontalOffset(mode: IslandMode, compact: CompactStyle, minimals: Int) -> CGFloat {
+        guard mode == .compact else { return 0 }
+        let w = compactWings(compact, minimals: minimals)
+        return (w.trailing - w.leading) / 2
     }
 
     public var expandedWidth: CGFloat { max(notchSize.width + 160, 440 * scale, notchSize.width + 2 * wingWidth(.wide) + 24) }
@@ -55,6 +72,7 @@ public struct IslandMetrics: Equatable, Sendable {
         case .timer: 56
         case .download: 54
         case .event: 46
+        case .device: 158
         case .research: 280
         }
     }
@@ -66,13 +84,15 @@ public struct IslandMetrics: Equatable, Sendable {
 
 
     /// Size of the main island shape for a given state.
-    public func size(mode: IslandMode, compact: CompactStyle, expanded: ExpandedStyle, searchHeight: CGFloat = 0, measuredContent: CGFloat? = nil) -> CGSize {
+    public func size(mode: IslandMode, compact: CompactStyle, expanded: ExpandedStyle, searchHeight: CGFloat = 0,
+                     measuredContent: CGFloat? = nil, minimals: Int = 0) -> CGSize {
         switch mode {
         case .idle:
             // Hidden inside the notch. On notch-less displays it collapses to nothing at the top edge.
             return hasNotch ? notchSize : CGSize(width: notchSize.width * 0.6, height: 0)
         case .compact:
-            return CGSize(width: notchSize.width + 2 * wingWidth(compact), height: compactHeight)
+            let w = compactWings(compact, minimals: minimals)
+            return CGSize(width: notchSize.width + w.leading + w.trailing, height: compactHeight)
         case .expanded:
             return CGSize(width: expandedWidth, height: expandedHeight(expanded, measuredContent: measuredContent))
         case .search:
@@ -97,29 +117,21 @@ public struct IslandMetrics: Equatable, Sendable {
 
     /// Fixed window size large enough for every state (window never resizes during animation).
     public var windowSize: CGSize {
-        // Bubbles hang off the right side only, but the island is centred, so reserve them on both sides.
-        let compactWide = notchSize.width + 2 * wingWidth(.wide) + 4 * (bubbleDiameter + bubbleSpacing) + 24
+        let wide = compactWings(.wide, minimals: Self.maxMinimals)
+        let compactWide = notchSize.width + 2 * max(wide.leading, wide.trailing) + 24
         let w = max(searchWidth, expandedWidth, compactWide) + 80
         let h = max(searchMaxHeight, expandedHeight(.research, measuredContent: 320)) + 40
         return CGSize(width: ceil(w), height: ceil(h))
     }
 
-    /// Region that triggers hover expansion: the Island body only — never the minimal bubbles, so they
-    /// stay put (and clickable) while the pointer is on them.
-    public func hoverRect(islandSize: CGSize, mode: IslandMode) -> CGRect {
-        hitRect(islandSize: islandSize, bubbles: 0, mode: mode)
-    }
-
-    /// Interactive region (relative to the top-centre anchor, y growing downward) for mouse hit-testing.
-    public func hitRect(islandSize: CGSize, bubbles: Int, mode: IslandMode) -> CGRect {
-        var rect = CGRect(x: -islandSize.width / 2, y: 0, width: islandSize.width, height: max(islandSize.height, 1))
-        if mode == .compact, bubbles > 0 {
-            rect.size.width += CGFloat(bubbles) * (bubbleDiameter + bubbleSpacing)
-        }
+    /// Interactive region relative to the top-centre anchor (y grows downward): the Island body,
+    /// shifted by its horizontal offset. In idle it's the notch itself, so an empty Island can be revealed.
+    public func hitRect(islandSize: CGSize, offset: CGFloat, mode: IslandMode) -> CGRect {
+        var rect = CGRect(x: -islandSize.width / 2 + offset, y: 0, width: islandSize.width, height: max(islandSize.height, 1))
         if mode == .idle {
-            // Hover hot-zone so the Island can be revealed even when empty.
             rect = CGRect(x: -notchSize.width / 2, y: 0, width: notchSize.width, height: compactHeight)
         }
         return rect.insetBy(dx: -4, dy: 0).union(CGRect(x: rect.minX, y: 0, width: rect.width, height: rect.height + 4))
     }
+
 }

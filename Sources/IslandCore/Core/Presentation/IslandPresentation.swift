@@ -51,7 +51,8 @@ public struct IslandPresentation: Equatable, Sendable {
         case .click:
             if !isExpanded { expand(.click) }
         case .clickOutside:
-            if isExpanded { rest() }
+            // A system-presented card (e.g. AirPods connected) holds for its full duration.
+            if isExpanded, reason != .transient { rest() }
         case .escape:
             if isExpanded { rest() }
         case .toggleSearch:

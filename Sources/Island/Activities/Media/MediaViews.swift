@@ -50,17 +50,19 @@ struct ArtworkView: View {
 
 struct MediaCompactLeading: View {
     let media: MediaActivity
+    var showTitle = false
     @Environment(\.islandNamespace) private var ns
     var body: some View {
         HStack(spacing: 8) {
-            ArtworkView(media: media, size: 20, corner: 5)
+            ArtworkView(media: media, size: 22, corner: 6)
                 .islandMatched("media-artwork", in: ns)
-            Text(media.title)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .islandMatched("media-title", in: ns)
-                .contentTransition(.opacity)
+            if showTitle {
+                Text(media.title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .islandMatched("media-title", in: ns)
+            }
         }
     }
 }
@@ -69,8 +71,10 @@ struct MediaCompactTrailing: View {
     let media: MediaActivity
     @Environment(\.islandReduceMotion) private var reduceMotion
     var body: some View {
-        EqualizerView(playing: media.playbackState == .playing, color: .white.withAlphaComponent(0.9), reduceMotion: reduceMotion)
-            .frame(width: 16, height: 13)
+        EqualizerView(playing: media.playbackState == .playing,
+                      colors: ArtworkPalette.colors(for: media.artworkID ?? media.trackKey, image: ImageCache.artwork(for: media)),
+                      reduceMotion: reduceMotion)
+            .frame(width: 22, height: 16)
             .accessibilityHidden(true)
     }
 }

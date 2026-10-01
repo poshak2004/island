@@ -59,15 +59,17 @@ final class IslandViewModel {
         )
     }
 
-    var compactStyle: CompactStyle { ActivityPresentation.compactStyle(for: primary) }
+    var compactStyle: CompactStyle { ActivityPresentation.compactStyle(for: primary, showsTitle: settings.compactShowsTitle) }
+    /// Secondary activities shown inside the compact Island.
+    var minimals: [Activity] { mode == .compact ? Array(secondaries.prefix(IslandMetrics.maxMinimals)) : [] }
+    var horizontalOffset: CGFloat { metrics.horizontalOffset(mode: mode, compact: compactStyle, minimals: minimals.count) }
     var expandedStyle: ExpandedStyle { ActivityPresentation.expandedStyle(for: primary) }
 
     var islandSize: CGSize {
         metrics.size(mode: mode, compact: compactStyle, expanded: expandedStyle, searchHeight: searchHeight,
-                     measuredContent: measuredContent[expandedStyle])
+                     measuredContent: measuredContent[expandedStyle], minimals: minimals.count)
     }
 
-    var visibleBubbles: [Activity] { mode == .compact ? secondaries : [] }
 
     var reduceMotion: Bool { settings.forceReduceMotion || accessibility.reduceMotion }
     var reduceTransparency: Bool { settings.forceReduceTransparency || accessibility.reduceTransparency }
@@ -76,8 +78,7 @@ final class IslandViewModel {
     var morphAnimation: Animation { IslandAnimation.morph(reduceMotion: reduceMotion, speed: settings.animationSpeed) }
 
     /// Window-local hit rect (anchor-relative, y downward).
-    var hitRect: CGRect { metrics.hitRect(islandSize: islandSize, bubbles: visibleBubbles.count, mode: mode) }
-    var hoverRect: CGRect { metrics.hoverRect(islandSize: islandSize, mode: mode) }
+    var hitRect: CGRect { metrics.hitRect(islandSize: islandSize, offset: horizontalOffset, mode: mode) }
 
     // MARK: Geometry
 
@@ -108,7 +109,7 @@ final class IslandViewModel {
             guard presentation.hovering || mode == .expanded else { return }
             let work = DispatchWorkItem { [weak self] in self?.apply(.hoverEnded) }
             hoverWork = work
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.22, execute: work)
+            DispatchQueue.main.asyncAfter(deadline: .now() + settings.collapseDelay, execute: work)
         }
     }
 

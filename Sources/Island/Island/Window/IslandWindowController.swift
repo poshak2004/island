@@ -14,6 +14,7 @@ final class IslandWindowController {
     /// Island deliberately never takes keyboard focus from the app you're using.
     private lazy var escapeKey = HotKey { [weak self] in self?.model.escape() }
     private(set) var isVisible = false
+    static let exitMargin: CGFloat = 10
     /// Pointer sampling used only near the Island: the notch/menu-bar strip belongs to no app window, so
     /// macOS doesn't reliably deliver mouse-moved events from there to monitors.
     private var proximityTimer: Timer?
@@ -69,10 +70,8 @@ final class IslandWindowController {
         refreshMouseState()
     }
 
-    /// Global rect of everything clickable (body + bubbles).
+    /// Global rect of the Island (clicks + hover).
     var interactiveRect: NSRect { global(model.hitRect) }
-    /// Global rect that drives hover expansion (body only).
-    var hoverRect: NSRect { global(model.hoverRect) }
 
     private func global(_ r: CGRect) -> NSRect {
         guard let g = model.geometry else { return .zero }
@@ -119,10 +118,13 @@ final class IslandWindowController {
         mouseEventCount += 1
         let location = NSEvent.mouseLocation
         lastMouse = location
-        let inside = interactiveRect.contains(location)
+        // Hysteresis: entering uses the Island's edge, leaving requires going 10 pt beyond it, so a pointer
+        // resting on the boundary can't make the Island flicker open and shut.
+        let wasInside = model.mouseInside
+        let inside = (wasInside ? interactiveRect.insetBy(dx: -Self.exitMargin, dy: -Self.exitMargin) : interactiveRect).contains(location)
         // Outside the Island the window is fully click-through — in every mode, including search.
         if panel.ignoresMouseEvents == inside { panel.ignoresMouseEvents = !inside }
-        model.mouseInsideChanged(hoverRect.contains(location))
+        model.mouseInsideChanged(inside)
         updateProximityPolling(near: interactiveRect.insetBy(dx: -120, dy: -120).contains(location))
     }
 

@@ -81,6 +81,16 @@ func registerPresentationTests() {
         expectEqual(p.mode, .expanded)
     }
 
+    test(S, "transient card ignores clicks elsewhere; Escape still dismisses") {
+        var p = IslandPresentation()
+        p.handle(.activityAvailabilityChanged(hasActivity: true))
+        p.handle(.presentTransient)
+        p.handle(.clickOutside)
+        expectEqual(p.mode, .expanded)
+        p.handle(.escape)
+        expectEqual(p.mode, .compact)
+    }
+
     test(S, "command expansion survives hover exit") {
         var p = IslandPresentation()
         p.handle(.activityAvailabilityChanged(hasActivity: true))
@@ -117,8 +127,10 @@ func registerPresentationTests() {
             for s in [0.8, 1.0, 1.3] {
                 let m = IslandMetrics(notchSize: CGSize(width: w, height: 32), hasNotch: true, scale: s)
                 for mode in [IslandMode.idle, .compact, .expanded, .search] {
-                    let size = m.size(mode: mode, compact: .wide, expanded: .research, searchHeight: 10_000)
-                    let total = size.width + 2 * m.topEarRadius(mode: mode) + (mode == .compact ? 2 * (m.bubbleDiameter + m.bubbleSpacing) : 0)
+                    let size = m.size(mode: mode, compact: .wide, expanded: .research, searchHeight: 10_000, minimals: 2)
+                    // The (possibly offset) Island must stay inside the window on both sides.
+                    let offset = abs(m.horizontalOffset(mode: mode, compact: .wide, minimals: 2))
+                    let total = size.width + 2 * m.topEarRadius(mode: mode) + 2 * offset
                     expect(total <= m.windowSize.width && size.height <= m.windowSize.height, "w=\(w) s=\(s) \(mode)")
                 }
             }
@@ -128,7 +140,7 @@ func registerPresentationTests() {
     test(S, "metrics: non-notch idle collapses to zero height") {
         let m = IslandMetrics(notchSize: CGSize(width: 190, height: 24), hasNotch: false)
         expectEqual(m.size(mode: .idle, compact: .standard, expanded: .home).height, 0)
-        expect(m.hitRect(islandSize: .zero, bubbles: 0, mode: .idle).height >= 24)
+        expect(m.hitRect(islandSize: .zero, offset: 0, mode: .idle).height >= 24)
     }
 
     test(S, "metrics: clamps invalid input") {
@@ -136,29 +148,29 @@ func registerPresentationTests() {
         expect(m.notchSize.width >= 80 && m.scale == 1 && m.expandedCornerRadius == 48)
     }
 
-    test(S, "metrics: hit rect includes bubbles only in compact") {
+    test(S, "metrics: secondaries live inside the trailing wing; notch gap stays on the notch") {
         let m = IslandMetrics(notchSize: CGSize(width: 180, height: 32), hasNotch: true)
-        let size = m.size(mode: .compact, compact: .standard, expanded: .home)
-        let r0 = m.hitRect(islandSize: size, bubbles: 0, mode: .compact)
-        let r2 = m.hitRect(islandSize: size, bubbles: 2, mode: .compact)
-        expect(r2.width > r0.width)
-        let e = m.hitRect(islandSize: size, bubbles: 2, mode: .expanded)
-        expectEqual(e.width, r0.width)
+        let none = m.size(mode: .compact, compact: .standard, expanded: .home, minimals: 0)
+        let two = m.size(mode: .compact, compact: .standard, expanded: .home, minimals: 2)
+        expect(two.width > none.width)
+        let offset = m.horizontalOffset(mode: .compact, compact: .standard, minimals: 2)
+        let wings = m.compactWings(.standard, minimals: 2)
+        // Left edge of the notch gap, measured from the anchor, must equal -notch/2.
+        expectEqual(-two.width / 2 + offset + wings.leading, -90)
+        expectEqual(m.horizontalOffset(mode: .expanded, compact: .standard, minimals: 2), 0)
+        let r = m.hitRect(islandSize: two, offset: offset, mode: .compact)
+        expect(r.maxX > two.width / 2) // shifted right with the trailing wing
+    }
+
+    test(S, "metrics: compact is iPhone-narrow") {
+        let m = IslandMetrics(notchSize: CGSize(width: 180, height: 32), hasNotch: true)
+        expect(m.size(mode: .compact, compact: .standard, expanded: .home).width <= 180 + 2 * 48)
     }
 }
 
 @MainActor
 func registerRegressionTests() {
     let S = "Regression"
-
-    test(S, "hover rect excludes minimal bubbles, hit rect includes them") {
-        let m = IslandMetrics(notchSize: CGSize(width: 180, height: 32), hasNotch: true)
-        let size = m.size(mode: .compact, compact: .wide, expanded: .home)
-        let hover = m.hoverRect(islandSize: size, mode: .compact)
-        let hit = m.hitRect(islandSize: size, bubbles: 2, mode: .compact)
-        let bubblePoint = CGPoint(x: size.width / 2 + m.bubbleSpacing + m.bubbleDiameter / 2, y: 16)
-        expect(hit.contains(bubblePoint) && !hover.contains(bubblePoint))
-    }
 
     test(S, "measured content height drives expanded size, clamped") {
         let m = IslandMetrics(notchSize: CGSize(width: 180, height: 32), hasNotch: true)

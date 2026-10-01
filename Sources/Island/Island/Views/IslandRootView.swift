@@ -14,10 +14,15 @@ struct IslandRootView: View {
         let size = model.islandSize
         let ear = metrics.topEarRadius(mode: mode)
         let shape = IslandShape(earRadius: ear, bottomRadius: metrics.bottomCornerRadius(mode: mode, height: size.height))
-        let glass = (mode == .expanded || mode == .search) ? model.settings.glassIntensity : 0
+        let open = mode == .expanded || mode == .search
+        // Compact uses see-through glass (setting) so the Island doesn't read as a black slab over the menu bar.
+        let compactGlass = mode == .compact && model.settings.compactGlass
+        let glass = open || compactGlass ? model.settings.glassIntensity : 0
 
         ZStack(alignment: .top) {
-            IslandBackground(shape: shape, glassAmount: glass, reduceTransparency: model.reduceTransparency, highContrast: model.highContrast)
+            IslandBackground(shape: shape, glassAmount: glass, clear: compactGlass,
+                             reduceTransparency: model.reduceTransparency, highContrast: model.highContrast)
+                .opacity(mode == .idle ? (metrics.hasNotch ? 1 : 0) : 1)
             content(metrics: metrics, size: size)
                 .frame(width: size.width, height: size.height, alignment: .top)
                 .clipShape(shape.inset(ear: ear))
@@ -25,7 +30,7 @@ struct IslandRootView: View {
         .frame(width: size.width + 2 * ear, height: max(size.height, 0.5))
         .contentShape(shape)
         .onTapGesture { model.click() }
-        .overlay(alignment: .topTrailing) { bubbles(metrics: metrics, ear: ear) }
+        .offset(x: model.horizontalOffset)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Island")
         .accessibilityAddTraits(mode == .compact ? .isButton : [])
@@ -49,7 +54,8 @@ struct IslandRootView: View {
             Color.clear
         case .compact:
             if let primary = model.primary {
-                CompactLayout(activity: primary, metrics: metrics, style: model.compactStyle)
+                CompactLayout(activity: primary, minimals: model.minimals, metrics: metrics, style: model.compactStyle,
+                              showsTitle: model.settings.compactShowsTitle)
                     .transition(transition)
                     .id("compact-\(primary.id)")
             }
@@ -61,27 +67,6 @@ struct IslandRootView: View {
                 .transition(transition)
         }
     }
-
-    @ViewBuilder
-    private func bubbles(metrics: IslandMetrics, ear: CGFloat) -> some View {
-        HStack(spacing: metrics.bubbleSpacing) {
-            ForEach(model.visibleBubbles) { activity in
-                Button { model.commands.perform(.ui(.select(activityID: activity.id))) } label: {
-                    MinimalView(activity: activity)
-                        .frame(width: metrics.bubbleDiameter, height: metrics.bubbleDiameter)
-                        .background(Circle().fill(Color.black))
-                        .overlay(model.highContrast ? Circle().stroke(Color.white.opacity(0.85), lineWidth: 1.5) : nil)
-                        .contentShape(Circle())
-                }
-                .buttonStyle(PressableStyle())
-                .islandMatched("bubble-\(activity.id)", in: ns)
-                .transition(model.reduceMotion ? .opacity : .scale(scale: 0.2, anchor: .leading).combined(with: .opacity))
-                .accessibilityLabel(ActivityPresentation.accessibilityLabel(for: activity))
-                .accessibilityHint("Shows this activity in the Island")
-            }
-        }
-        .alignmentGuide(.trailing) { d in d[.leading] - metrics.bubbleSpacing + ear }
-    }
 }
 
 private extension IslandShape {
@@ -91,26 +76,45 @@ private extension IslandShape {
     }
 }
 
-/// `[ leading ]  notch  [ trailing ]`
+/// `[ leading ]  notch  [ trailing · minimals ]`
 struct CompactLayout: View {
     let activity: Activity
+    let minimals: [Activity]
     let metrics: IslandMetrics
     let style: CompactStyle
+    var showsTitle = false
+    @Environment(\.islandNamespace) private var ns
 
     var body: some View {
-        let wing = metrics.wingWidth(style)
-        let pad = max(8, metrics.compactHeight * 0.3)
+        let wings = metrics.compactWings(style, minimals: minimals.count)
+        let pad = max(8, metrics.compactHeight * 0.28)
         HStack(spacing: 0) {
-            CompactLeadingView(activity: activity)
-                .frame(width: wing - pad, alignment: .leading)
+            CompactLeadingView(activity: activity, showsTitle: showsTitle)
+                .frame(width: wings.leading - pad, alignment: .leading)
                 .padding(.leading, pad)
             Color.clear.frame(width: metrics.notchSize.width)
-            CompactTrailingView(activity: activity)
-                .frame(width: wing - pad, alignment: .trailing)
-                .padding(.trailing, pad)
+            HStack(spacing: 0) {
+                CompactTrailingView(activity: activity)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                if !minimals.isEmpty {
+                    Capsule().fill(.white.opacity(0.18)).frame(width: 1, height: metrics.compactHeight * 0.45)
+                        .padding(.horizontal, 4)
+                    ForEach(minimals) { m in
+                        MinimalView(activity: m)
+                            .frame(width: 18, height: 18)
+                            .frame(width: metrics.minimalSlot)
+                            .islandMatched("bubble-\(m.id)", in: ns)
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(ActivityPresentation.accessibilityLabel(for: m))
+                            .transition(.scale(scale: 0.4).combined(with: .opacity))
+                    }
+                }
+            }
+            .frame(width: wings.trailing - pad)
+            .padding(.trailing, pad)
         }
         .frame(height: metrics.compactHeight)
-        .accessibilityElement(children: .ignore)
+        .accessibilityElement(children: .contain)
         .accessibilityLabel(ActivityPresentation.accessibilityLabel(for: activity))
     }
 }
