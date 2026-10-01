@@ -22,6 +22,7 @@ final class AppEnvironment {
     let recording: RecordingProvider
     let calendar: CalendarProvider
     let clipboard: ClipboardProvider
+    let airPods: AirPodsConnectionAnimator
     private(set) var providersRunning = false
     private(set) lazy var features = FeatureHub(env: self)
     private var running: Set<String> = []
@@ -41,6 +42,12 @@ final class AppEnvironment {
         recording = RecordingProvider(sink: submit)
         calendar = CalendarProvider(sink: submit)
         clipboard = ClipboardProvider(sink: submit)
+        let router = commands
+        airPods = AirPodsConnectionAnimator(sink: submit, ui: { router.perform(.ui($0)) },
+                                            reduceMotion: { [weak island] in island?.reduceMotion ?? false })
+        island.airPods = airPods
+        devices.onAirPodsConnected = { [weak airPods] in airPods?.deviceConnected(name: $0) }
+        devices.onAirPodsDisconnected = { [weak airPods] in airPods?.deviceDisconnected() }
 
         search.commands = commands
         search.onHeightChange = { [weak island] h in island?.searchHeight = h }
@@ -119,7 +126,9 @@ final class AppEnvironment {
         case .presentTransient(let s): island.presentTransient(seconds: s)
         case .select(let id): manager.select(id: id)
         case .selectNext: manager.selectNext()
-        case .dismiss(let id): manager.dismiss(id: id)
+        case .dismiss(let id):
+            if id == AirPodsConnectionAnimator.activityID { airPods.dismiss() }
+            manager.dismiss(id: id)
         }
     }
 

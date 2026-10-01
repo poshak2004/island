@@ -8,7 +8,8 @@ enum ActivityPresentation {
         guard let a else { return .standard }
         switch a.content {
         case .media: return showsTitle ? .wide : .standard
-        case .device, .calendar, .clipboard, .event, .network: return .wide
+        case .device(let d): return d.airPods != nil ? .standard : .wide
+        case .calendar, .clipboard, .event, .network: return .wide
         default: return .standard
         }
     }
@@ -51,7 +52,7 @@ struct CompactLeadingView: View {
         case .recording(let r): RecordingCompactLeading(recording: r, id: activity.id)
         case .battery(let b): BatteryCompactLeading(battery: b, id: activity.id)
         case .network(let n): SimpleCompactLeading(symbol: NetworkPresentation.symbol(n), tint: IslandPalette.network, text: NetworkPresentation.title(n), id: activity.id)
-        case .device(let d): SimpleCompactLeading(symbol: DevicePresentation.symbol(d), tint: .white, text: d.name, id: activity.id)
+        case .device(let d): DeviceCompactLeading(device: d, id: activity.id)
         case .calendar(let c): SimpleCompactLeading(symbol: "calendar", tint: IslandPalette.hex(c.calendarColorHex) ?? .red, text: c.title, id: activity.id)
         case .clipboard(let c): SimpleCompactLeading(symbol: "doc.on.clipboard", tint: .white, text: c.preview, id: activity.id)
         case .event(let e): SimpleCompactLeading(symbol: e.symbol, tint: IslandPalette.hex(e.tintHex) ?? .white, text: e.title, id: activity.id)
@@ -110,7 +111,8 @@ struct ExpandedActivityView: View {
         case .recording(let r): RecordingExpanded(recording: r, id: activity.id)
         case .battery(let b): BatteryExpanded(battery: b, id: activity.id)
         case .network(let n): EventLikeExpanded(symbol: NetworkPresentation.symbol(n), tint: IslandPalette.network, title: NetworkPresentation.title(n), subtitle: NetworkPresentation.subtitle(n), id: activity.id)
-        case .device(let d): DeviceConnectedView(device: d, id: activity.id)
+        case .device(let d):
+            if d.airPods != nil { AirPodsConnectionView(device: d, id: activity.id) } else { HeadphonesConnectedView(device: d, id: activity.id) }
         case .calendar(let c): CalendarExpanded(event: c, id: activity.id)
         case .clipboard(let c): EventLikeExpanded(symbol: "doc.on.clipboard", tint: .white, title: "Copied to clipboard", subtitle: c.preview, id: activity.id)
         case .event(let e): EventLikeExpanded(symbol: e.symbol, tint: IslandPalette.hex(e.tintHex) ?? .white, title: e.title, subtitle: e.subtitle, id: activity.id)

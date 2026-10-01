@@ -27,11 +27,21 @@ final class DebugRemote {
                 case "critical": env.manager.submit(.upsert(DebugActivities.criticalEvent()))
                 case "battery": env.manager.submit(.upsert(DebugActivities.battery()))
                 case "clear": env.manager.removeAll()
-                case "airpods", "airpodspro", "headphones":
-                    let name = cmd == "airpods" ? "AirPods" : cmd == "airpodspro" ? "Poshak's AirPods Pro" : "WH-1000XM5"
+                case "airpods", "airpodspro", "airpodsmax":
+                    // DEBUG: simulate a connection through the real animator with a canned system report.
+                    let name = cmd == "airpodsmax" ? "Test AirPods Max" : cmd == "airpodspro" ? "Poshak’s AirPods Pro" : "Test AirPods"
+                    let pid = cmd == "airpodsmax" ? 0x201F : cmd == "airpodspro" ? 0x2024 : 0x2019
+                    let battery = cmd == "airpodsmax" ? AirPodsBattery(single: 64) : AirPodsBattery(left: 82, right: 79, caseLevel: 61)
+                    env.airPods.lookup = { _ in
+                        try? await Task.sleep(nanoseconds: 300_000_000)
+                        return BluetoothDeviceReport(name: name, address: nil, productID: pid, vendorID: 0x004C, connected: true, battery: battery)
+                    }
+                    env.airPods.deviceConnected(name: name)
+                case "airpodsreal": env.airPods.lookup = { await AirPodsInfoProvider.lookup(name: $0) }
+                case "headphones":
                     env.manager.submit(.upsert(Activity(id: "device", kind: .device, priority: .high,
-                        content: .device(DeviceActivity(name: name, type: .headphones, connected: true)), expiresAt: Date().addingTimeInterval(5))))
-                    env.bus.publish(.deviceConnected(name: name))
+                        content: .device(DeviceActivity(name: "WH-1000XM5", type: .headphones, connected: true)), expiresAt: Date().addingTimeInterval(5))))
+                    env.bus.publish(.deviceConnected(name: "WH-1000XM5"))
                 case "dump": DebugRemote.dump(env)
                 case "settings": env.commands.perform(.openSettings)
                 case "debugpanel": env.showDebugPanel()
@@ -78,6 +88,7 @@ extension DebugRemote {
         lines.append("mediaSources=\(env.media.states.keys.sorted()) current=\(env.media.currentSource ?? "none") error=\(env.media.lastError ?? "none")")
         lines.append("geometry=\(String(describing: env.island.geometry?.notchRect)) notch=\(env.island.geometry?.hasNotch ?? false)")
         lines.append("polling=\(env.window.isPollingPointer) panelVisible=\(env.window.panel.isVisible) escapeArmed=\(env.window.escapeArmed) key=\(env.window.panel.isKeyWindow) monitors=\(env.window.monitorCount) visible=\(env.window.isVisible) mouseEvents=\(env.window.mouseEventCount) last=\(env.window.lastMouse) inside=\(env.island.mouseInside) hit=\(env.window.interactiveRect)")
+        lines.append("airpods=\(env.airPods.phase.rawValue) revealed=\(env.airPods.isRevealed)")
         lines.append("hotkey=\(env.features.hotKey?.registered?.display ?? "none") err=\(env.features.hotKey?.lastError ?? 0)")
         lines.append("window=\(env.window.panel.frame) ignoresMouse=\(env.window.panel.ignoresMouseEvents)")
         for e in env.manager.log.suffix(15) { lines.append("log: \(e.message)") }

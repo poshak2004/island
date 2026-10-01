@@ -186,10 +186,21 @@ public struct DeviceActivity: Equatable, Sendable {
     public var name: String
     public var type: DeviceType
     public var connected: Bool
-    public init(name: String, type: DeviceType, connected: Bool) {
+    /// Resolved AirPods model, when the device is AirPods.
+    public var airPods: AirPodsModel?
+    /// Bluetooth product ID (Apple vendor), used to look up model-specific artwork.
+    public var productID: Int?
+    /// Battery levels when the system reports them.
+    public var battery: AirPodsBattery?
+
+    public init(name: String, type: DeviceType, connected: Bool, airPods: AirPodsModel? = nil,
+                productID: Int? = nil, battery: AirPodsBattery? = nil) {
         self.name = name
         self.type = type
         self.connected = connected
+        self.airPods = airPods
+        self.productID = productID
+        self.battery = battery
     }
 }
 

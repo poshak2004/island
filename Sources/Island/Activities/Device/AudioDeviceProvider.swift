@@ -12,6 +12,9 @@ final class AudioDeviceProvider {
     private var lastDevice: AudioDeviceID?
     private var lastName: String?
     private var lastWasExternal = false
+    /// AirPods connections are animated by `AirPodsConnectionAnimator` instead of the generic card.
+    var onAirPodsConnected: ((String) -> Void)?
+    var onAirPodsDisconnected: (() -> Void)?
 
     init(bus: EventBus, sink: @escaping (ActivityUpdate) -> Void) {
         self.bus = bus
@@ -48,6 +51,11 @@ final class AudioDeviceProvider {
         let external = transport != kAudioDeviceTransportTypeBuiltIn
         defer { lastDevice = dev; lastName = name; lastWasExternal = external }
         let activity: DeviceActivity
+        if external, name.lowercased().contains("airpods"), let onAirPodsConnected {
+            onAirPodsConnected(name)
+            return
+        }
+        if lastWasExternal, lastName?.lowercased().contains("airpods") == true { onAirPodsDisconnected?() }
         if external {
             activity = DeviceActivity(name: name, type: Self.type(name: name, transport: transport), connected: true)
             bus.publish(.deviceConnected(name: name))

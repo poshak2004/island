@@ -12,6 +12,8 @@ final class IslandViewModel {
     let settings: IslandSettings
     let accessibility: AccessibilityMonitor
     @ObservationIgnored var commands: CommandRouter
+    /// AirPods connection animation (separate component; the Island only reads its reveal state).
+    @ObservationIgnored var airPods: AirPodsConnectionAnimator?
 
     private(set) var presentation = IslandPresentation()
     private(set) var geometry: NotchGeometry?

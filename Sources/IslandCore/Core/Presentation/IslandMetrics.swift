@@ -72,7 +72,7 @@ public struct IslandMetrics: Equatable, Sendable {
         case .timer: 56
         case .download: 54
         case .event: 46
-        case .device: 158
+        case .device: 64
         case .research: 280
         }
     }

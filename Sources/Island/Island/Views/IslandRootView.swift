@@ -40,6 +40,7 @@ struct IslandRootView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .environment(\.islandNamespace, ns)
         .environment(\.islandReduceMotion, model.reduceMotion)
+        .environment(\.airPodsRevealed, model.airPods.map { $0.phase == .idle || $0.isRevealed } ?? true)
         .environment(\.islandCommands, IslandCommandSink { [weak model] c in model?.commands.perform(c) })
         .environment(\.colorScheme, .dark)
         .animation(model.morphAnimation, value: model.manager.primary?.id)
