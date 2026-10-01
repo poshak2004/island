@@ -27,6 +27,9 @@ final class DebugRemote {
                 case "battery": env.manager.submit(.upsert(DebugActivities.battery()))
                 case "clear": env.manager.removeAll()
                 case "dump": DebugRemote.dump(env)
+                case "settings": env.commands.perform(.openSettings)
+                case "debugpanel": env.showDebugPanel()
+                case "quicktimer": env.timers.handle(.start(duration: 3, label: "Quick"))
                 default:
                     if cmd.hasPrefix("query:") { env.search.query = String(cmd.dropFirst(6)) }
                 }

@@ -5,20 +5,48 @@ import SwiftUI
 struct SettingsView: View {
     @Bindable var settings: IslandSettings
     let env: AppEnvironment
+    @State private var pane: Pane = .general
+
+    enum Pane: String, CaseIterable, Identifiable {
+        case general = "General", appearance = "Appearance", behavior = "Behavior", activities = "Activities"
+        case search = "Search", ai = "AI", accessibility = "Accessibility", advanced = "Advanced"
+        var id: String { rawValue }
+        var symbol: String {
+            switch self {
+            case .general: "gearshape"
+            case .appearance: "paintbrush"
+            case .behavior: "hand.point.up.left"
+            case .activities: "square.stack.3d.up"
+            case .search: "magnifyingglass"
+            case .ai: "sparkles"
+            case .accessibility: "accessibility"
+            case .advanced: "wrench.and.screwdriver"
+            }
+        }
+    }
 
     var body: some View {
-        TabView {
-            GeneralSettings(settings: settings, env: env).tabItem { Label("General", systemImage: "gearshape") }
-            AppearanceSettings(settings: settings).tabItem { Label("Appearance", systemImage: "paintbrush") }
-            BehaviorSettings(settings: settings).tabItem { Label("Behavior", systemImage: "hand.point.up.left") }
-            ActivitySettings(settings: settings, env: env).tabItem { Label("Activities", systemImage: "square.stack.3d.up") }
-            SearchSettings(settings: settings, env: env).tabItem { Label("Search", systemImage: "magnifyingglass") }
-            AISettings(settings: settings).tabItem { Label("AI", systemImage: "sparkles") }
-            AccessibilitySettings(settings: settings, env: env).tabItem { Label("Accessibility", systemImage: "accessibility") }
-            AdvancedSettings(settings: settings, env: env).tabItem { Label("Advanced", systemImage: "wrench.and.screwdriver") }
+        NavigationSplitView {
+            List(Pane.allCases, selection: $pane) { p in
+                Label(p.rawValue, systemImage: p.symbol).tag(p)
+            }
+            .navigationSplitViewColumnWidth(170)
+        } detail: {
+            Group {
+                switch pane {
+                case .general: GeneralSettings(settings: settings, env: env)
+                case .appearance: AppearanceSettings(settings: settings)
+                case .behavior: BehaviorSettings(settings: settings)
+                case .activities: ActivitySettings(settings: settings, env: env)
+                case .search: SearchSettings(settings: settings, env: env)
+                case .ai: AISettings(settings: settings)
+                case .accessibility: AccessibilitySettings(settings: settings, env: env)
+                case .advanced: AdvancedSettings(settings: settings, env: env)
+                }
+            }
+            .navigationTitle(pane.rawValue)
         }
-        .frame(width: 560, height: 440)
-        .scenePadding()
+        .frame(minWidth: 720, minHeight: 500)
     }
 }
 
@@ -269,8 +297,10 @@ final class SettingsWindowController {
     private var window: NSWindow?
     func show(env: AppEnvironment) {
         if window == nil {
-            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 480), styleMask: [.titled, .closable], backing: .buffered, defer: false)
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 760, height: 520), styleMask: [.titled, .closable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
             w.title = "Island Settings"
+            w.titlebarAppearsTransparent = true
+            w.toolbarStyle = .unified
             w.isReleasedWhenClosed = false
             w.contentView = NSHostingView(rootView: SettingsView(settings: env.settings, env: env))
             w.center()
