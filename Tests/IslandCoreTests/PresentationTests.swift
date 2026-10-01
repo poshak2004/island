@@ -146,3 +146,57 @@ func registerPresentationTests() {
         expectEqual(e.width, r0.width)
     }
 }
+
+@MainActor
+func registerRegressionTests() {
+    let S = "Regression"
+
+    test(S, "hover rect excludes minimal bubbles, hit rect includes them") {
+        let m = IslandMetrics(notchSize: CGSize(width: 180, height: 32), hasNotch: true)
+        let size = m.size(mode: .compact, compact: .wide, expanded: .home)
+        let hover = m.hoverRect(islandSize: size, mode: .compact)
+        let hit = m.hitRect(islandSize: size, bubbles: 2, mode: .compact)
+        let bubblePoint = CGPoint(x: size.width / 2 + m.bubbleSpacing + m.bubbleDiameter / 2, y: 16)
+        expect(hit.contains(bubblePoint) && !hover.contains(bubblePoint))
+    }
+
+    test(S, "measured content height drives expanded size, clamped") {
+        let m = IslandMetrics(notchSize: CGSize(width: 180, height: 32), hasNotch: true)
+        let est = m.size(mode: .expanded, compact: .standard, expanded: .media)
+        let measured = m.size(mode: .expanded, compact: .standard, expanded: .media, measuredContent: 150)
+        expectEqual(measured.height, 32 + IslandMetrics.expandedTopPadding + 150 + IslandMetrics.expandedBottomPadding)
+        expect(est.height != measured.height)
+        expect(m.size(mode: .expanded, compact: .standard, expanded: .media, measuredContent: 10_000).height <= m.windowSize.height)
+    }
+
+    test(S, "selectNext cycles every visible activity in a stable order") {
+        let mgr = ActivityManager(clock: { Date(timeIntervalSince1970: 0) })
+        mgr.schedulesExpiry = false
+        for (i, id) in ["a", "b", "c"].enumerated() {
+            mgr.submit(.upsert(Activity(id: id, kind: .custom, priority: i == 2 ? .low : .normal, content: .event(SystemEventActivity(symbol: "x", title: id)))))
+        }
+        var seen: [String] = []
+        for _ in 0..<6 { seen.append(mgr.primary!.id); mgr.selectNext() }
+        expectEqual(seen, ["a", "b", "c", "a", "b", "c"])
+    }
+
+    test(S, "manager notifies synchronously on every change") {
+        let mgr = ActivityManager()
+        mgr.schedulesExpiry = false
+        var calls = 0
+        mgr.onChange = { calls += 1 }
+        mgr.submit(.upsert(Activity(id: "x", kind: .custom, priority: .normal, content: .event(SystemEventActivity(symbol: "x", title: "x")))))
+        expectEqual(calls, 1)
+        mgr.removeAll()
+        expectEqual(calls, 2)
+        expect(mgr.primary == nil)
+    }
+
+    test(S, "old default hover delay migrates") {
+        let d = UserDefaults(suiteName: "island.tests.\(UUID().uuidString)")!
+        d.set(#"{"hoverDelay": 0.12}"#.data(using: .utf8), forKey: "island.settings.v1")
+        expectEqual(IslandSettings(defaults: d).hoverDelay, 0.06)
+        d.set(#"{"hoverDelay": 0.3}"#.data(using: .utf8), forKey: "island.settings.v1")
+        expectEqual(IslandSettings(defaults: d).hoverDelay, 0.3)
+    }
+}

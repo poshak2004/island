@@ -34,6 +34,8 @@ public final class ActivityManager {
     /// Disable for deterministic tests; then call `purgeExpired(now:)` manually.
     public var schedulesExpiry = true
 
+    /// Called synchronously after every change to the ordered activities (primary, secondaries, content).
+    @ObservationIgnored public var onChange: (() -> Void)?
     @ObservationIgnored public let bus: EventBus
     @ObservationIgnored private let clock: () -> Date
     @ObservationIgnored private var sequence: UInt64 = 0
@@ -80,7 +82,8 @@ public final class ActivityManager {
     /// Cycle the primary through the visible activities (used by keyboard / debug "Switch Activity").
     public func selectNext() {
         guard ordered.count > 1 else { return }
-        let visible = Array(ordered.prefix(maxSecondaries + 1))
+        // Cycle in arrival order, which (unlike rank order) doesn't change when the selection does.
+        let visible = Array(ordered.prefix(maxSecondaries + 1)).sorted { $0.sequence < $1.sequence }
         guard let current = primary, let idx = visible.firstIndex(where: { $0.id == current.id }) else { return }
         select(id: visible[(idx + 1) % visible.count].id)
     }
@@ -163,6 +166,7 @@ public final class ActivityManager {
         let newSecondaries = Array(sorted.dropFirst().prefix(maxSecondaries))
         if secondaries != newSecondaries { secondaries = newSecondaries }
         scheduleExpiry()
+        onChange?()
     }
 
     private func scheduleExpiry() {

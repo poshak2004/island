@@ -38,7 +38,7 @@ struct TimerCompactTrailing: View {
             Text(timerText(now))
                 .font(.system(size: 13, weight: .semibold).monospacedDigit())
                 .foregroundStyle(IslandPalette.timer)
-                .contentTransition(.numericText(countsDown: true))
+                
         }
     }
 
@@ -84,7 +84,7 @@ struct TimerExpanded: View {
                     Text(isFinished ? "Done" : DurationFormatter.clock(timer.remaining(at: now).rounded(.up)))
                         .font(.system(size: 34, weight: .light).monospacedDigit())
                         .foregroundStyle(IslandPalette.timer)
-                        .contentTransition(.numericText(countsDown: true))
+                        
                 }
                 .accessibilityElement(children: .combine)
                 Spacer(minLength: 0)

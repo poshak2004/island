@@ -9,10 +9,18 @@ final class HotKey {
     private var ref: EventHotKeyRef?
     private var handler: EventHandlerRef?
     private let action: () -> Void
+    private let hotKeyID: UInt32
     private(set) var registered: IslandShortcut?
     private(set) var lastError: OSStatus = noErr
+    private static var nextID: UInt32 = 1
 
-    init(action: @escaping () -> Void) { self.action = action }
+    init(action: @escaping () -> Void) {
+        self.action = action
+        hotKeyID = Self.nextID
+        Self.nextID += 1
+    }
+
+    var isRegistered: Bool { ref != nil }
 
     func register(_ shortcut: IslandShortcut?) {
         unregister()
@@ -20,17 +28,24 @@ final class HotKey {
         if handler == nil {
             var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
             let selfPtr = Unmanaged.passUnretained(self).toOpaque()
-            InstallEventHandler(GetApplicationEventTarget(), { _, _, ctx in
-                guard let ctx else { return noErr }
+            InstallEventHandler(GetApplicationEventTarget(), { _, event, ctx in
+                guard let ctx, let event else { return OSStatus(eventNotHandledErr) }
+                var pressed = EventHotKeyID()
+                GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil,
+                                  MemoryLayout<EventHotKeyID>.size, nil, &pressed)
                 let hk = Unmanaged<HotKey>.fromOpaque(ctx).takeUnretainedValue()
+                // Every HotKey instance sees every hot-key event; only react to our own id.
+                guard pressed.signature == HotKey.signature, pressed.id == hk.hotKeyID else { return OSStatus(eventNotHandledErr) }
                 DispatchQueue.main.async { MainActor.assumeIsolated { hk.action() } }
                 return noErr
             }, 1, &spec, selfPtr, &handler)
         }
-        let id = EventHotKeyID(signature: OSType(0x49534C44 /* ISLD */), id: 1)
+        let id = EventHotKeyID(signature: Self.signature, id: hotKeyID)
         lastError = RegisterEventHotKey(shortcut.keyCode, shortcut.carbonModifiers, id, GetApplicationEventTarget(), 0, &ref)
         registered = lastError == noErr ? shortcut : nil
     }
+
+    nonisolated static let signature = OSType(0x49534C44) // 'ISLD'
 
     func unregister() {
         if let ref { UnregisterEventHotKey(ref) }

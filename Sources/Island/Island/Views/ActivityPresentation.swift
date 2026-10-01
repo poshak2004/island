@@ -25,7 +25,7 @@ enum ActivityPresentation {
     static func accessibilityLabel(for a: Activity) -> String {
         switch a.content {
         case .media(let m): "\(m.playbackState == .playing ? "Playing" : "Paused"): \(m.title)\(m.artist.isEmpty ? "" : " by \(m.artist)"), \(m.sourceName)"
-        case .timer(let t): "Timer \(t.label), \(DurationFormatter.spoken(t.remaining(at: Date()))) remaining"
+        case .timer(let t): (t.label.isEmpty || t.label == "Timer" ? "Timer" : "Timer \(t.label)") + ", \(DurationFormatter.spoken(t.remaining(at: Date()))) remaining"
         case .download(let d): "Downloading \(d.filename)\(d.fraction.map { ", \(Int($0 * 100)) percent" } ?? "")"
         case .recording(let r): r.camera ? "Camera in use" : "Microphone in use" + (r.microphone && r.camera ? " and microphone" : "")
         case .battery(let b): "Battery \(b.level) percent\(b.isCharging ? ", charging" : "")"

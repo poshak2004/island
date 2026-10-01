@@ -35,28 +35,38 @@ public struct IslandMetrics: Equatable, Sendable {
     public func wingWidth(_ style: CompactStyle) -> CGFloat {
         switch style {
         case .standard: (compactHeight + 32) * scale
-        case .wide: (compactHeight + 84) * scale
+        case .wide: (compactHeight + 100) * scale
         }
     }
 
-    public var expandedWidth: CGFloat { max(notchSize.width + 160, 440 * scale) }
+    public var expandedWidth: CGFloat { max(notchSize.width + 160, 440 * scale, notchSize.width + 2 * wingWidth(.wide) + 24) }
     public var searchWidth: CGFloat { max(notchSize.width + 220, 580 * scale) }
     public var searchMaxHeight: CGFloat { 440 * scale }
 
-    public func expandedHeight(_ style: ExpandedStyle) -> CGFloat {
-        let content: CGFloat = switch style {
-        case .home: 112
-        case .media: 140
-        case .timer: 112
-        case .download: 112
-        case .event: 84
-        case .research: 300
+    /// Padding around expanded content (below the notch-height header row).
+    public static let expandedTopPadding: CGFloat = 4
+    public static let expandedBottomPadding: CGFloat = 18
+
+    /// Best estimate of each layout's content height; the live layout's measured height replaces it.
+    public func estimatedContentHeight(_ style: ExpandedStyle) -> CGFloat {
+        switch style {
+        case .home: 64
+        case .media: 132
+        case .timer: 56
+        case .download: 54
+        case .event: 46
+        case .research: 280
         }
-        return compactHeight + content * scale
     }
 
+    public func expandedHeight(_ style: ExpandedStyle, measuredContent: CGFloat? = nil) -> CGFloat {
+        let content = measuredContent.map { min(max($0, 20), 320) } ?? estimatedContentHeight(style)
+        return compactHeight + Self.expandedTopPadding + content + Self.expandedBottomPadding
+    }
+
+
     /// Size of the main island shape for a given state.
-    public func size(mode: IslandMode, compact: CompactStyle, expanded: ExpandedStyle, searchHeight: CGFloat = 0) -> CGSize {
+    public func size(mode: IslandMode, compact: CompactStyle, expanded: ExpandedStyle, searchHeight: CGFloat = 0, measuredContent: CGFloat? = nil) -> CGSize {
         switch mode {
         case .idle:
             // Hidden inside the notch. On notch-less displays it collapses to nothing at the top edge.
@@ -64,7 +74,7 @@ public struct IslandMetrics: Equatable, Sendable {
         case .compact:
             return CGSize(width: notchSize.width + 2 * wingWidth(compact), height: compactHeight)
         case .expanded:
-            return CGSize(width: expandedWidth, height: expandedHeight(expanded))
+            return CGSize(width: expandedWidth, height: expandedHeight(expanded, measuredContent: measuredContent))
         case .search:
             let h = min(searchMaxHeight, max(compactHeight + 52 * scale, searchHeight))
             return CGSize(width: searchWidth, height: h)
@@ -90,8 +100,14 @@ public struct IslandMetrics: Equatable, Sendable {
         // Bubbles hang off the right side only, but the island is centred, so reserve them on both sides.
         let compactWide = notchSize.width + 2 * wingWidth(.wide) + 4 * (bubbleDiameter + bubbleSpacing) + 24
         let w = max(searchWidth, expandedWidth, compactWide) + 80
-        let h = max(searchMaxHeight, expandedHeight(.research)) + 40
+        let h = max(searchMaxHeight, expandedHeight(.research, measuredContent: 320)) + 40
         return CGSize(width: ceil(w), height: ceil(h))
+    }
+
+    /// Region that triggers hover expansion: the Island body only — never the minimal bubbles, so they
+    /// stay put (and clickable) while the pointer is on them.
+    public func hoverRect(islandSize: CGSize, mode: IslandMode) -> CGRect {
+        hitRect(islandSize: islandSize, bubbles: 0, mode: mode)
     }
 
     /// Interactive region (relative to the top-centre anchor, y growing downward) for mouse hit-testing.

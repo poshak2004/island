@@ -28,7 +28,7 @@ final class FeatureHub {
     /// Re-applied whenever settings change.
     func configure() {
         let s = env.settings
-        hotKey?.register(s.searchEnabled ? s.searchShortcut : nil)
+        hotKey?.register(s.searchEnabled && s.islandEnabled ? s.searchShortcut : nil)
         debug.setOverlay(s.performanceOverlay, env: env)
 
         var providers: [any SearchProvider] = [ActionSearchProvider(webSearchURL: Self.browserSearchURL), apps]

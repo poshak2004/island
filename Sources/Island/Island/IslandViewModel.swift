@@ -16,6 +16,8 @@ final class IslandViewModel {
     private(set) var presentation = IslandPresentation()
     private(set) var geometry: NotchGeometry?
     var searchHeight: CGFloat = 0
+    /// Measured natural height of each expanded layout (content only), learned from the live view.
+    private(set) var measuredContent: [ExpandedStyle: CGFloat] = [:]
     /// Bumped on every mode change; useful for diagnostics and tests.
     private(set) var transitionCount = 0
     private(set) var isAnimating = false
@@ -26,6 +28,12 @@ final class IslandViewModel {
     @ObservationIgnored private var animationEndWork: DispatchWorkItem?
     @ObservationIgnored private(set) var mouseInside = false
     @ObservationIgnored var onModeChange: ((IslandMode) -> Void)?
+    /// Recent input → mode transitions (diagnostics; shown in the debug dump).
+    @ObservationIgnored private(set) var trace: [String] = []
+    private func note(_ s: String) {
+        trace.append(String(format: "%.3f ", Date().timeIntervalSince1970.truncatingRemainder(dividingBy: 100)) + s)
+        if trace.count > 40 { trace.removeFirst(trace.count - 40) }
+    }
 
     init(manager: ActivityManager, settings: IslandSettings, accessibility: AccessibilityMonitor, commands: CommandRouter) {
         self.manager = manager
@@ -55,7 +63,8 @@ final class IslandViewModel {
     var expandedStyle: ExpandedStyle { ActivityPresentation.expandedStyle(for: primary) }
 
     var islandSize: CGSize {
-        metrics.size(mode: mode, compact: compactStyle, expanded: expandedStyle, searchHeight: searchHeight)
+        metrics.size(mode: mode, compact: compactStyle, expanded: expandedStyle, searchHeight: searchHeight,
+                     measuredContent: measuredContent[expandedStyle])
     }
 
     var visibleBubbles: [Activity] { mode == .compact ? secondaries : [] }
@@ -68,16 +77,26 @@ final class IslandViewModel {
 
     /// Window-local hit rect (anchor-relative, y downward).
     var hitRect: CGRect { metrics.hitRect(islandSize: islandSize, bubbles: visibleBubbles.count, mode: mode) }
+    var hoverRect: CGRect { metrics.hoverRect(islandSize: islandSize, mode: mode) }
 
     // MARK: Geometry
 
     func updateGeometry(_ g: NotchGeometry?) { geometry = g }
+
+    /// Called by the expanded layout with its natural content height. Ignores sub-point jitter.
+    func reportContentHeight(_ h: CGFloat, for style: ExpandedStyle) {
+        guard h.isFinite, h > 0 else { return }
+        let rounded = h.rounded(.up)
+        if let old = measuredContent[style], abs(old - rounded) < 1 { return }
+        withAnimation(morphAnimation) { measuredContent[style] = rounded }
+    }
 
     // MARK: Input
 
     func mouseInsideChanged(_ inside: Bool) {
         guard inside != mouseInside else { return }
         mouseInside = inside
+        note("pointer \(inside ? "in" : "out")")
         hoverWork?.cancel()
         if inside {
             collapseWork?.cancel()
@@ -89,7 +108,7 @@ final class IslandViewModel {
             guard presentation.hovering || mode == .expanded else { return }
             let work = DispatchWorkItem { [weak self] in self?.apply(.hoverEnded) }
             hoverWork = work
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: work)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.22, execute: work)
         }
     }
 
@@ -118,7 +137,13 @@ final class IslandViewModel {
         next.handle(input)
         guard next != presentation else { return }
         let modeChanged = next.mode != presentation.mode
-        withAnimation(morphAnimation) { presentation = next }
+        note("\(input) → \(next.mode.rawValue)\(modeChanged ? "" : " (same)")")
+        let opening = !presentation.isExpanded && next.isExpanded
+        let closing = presentation.isExpanded && !next.isExpanded
+        let animation = opening ? IslandAnimation.expand(reduceMotion: reduceMotion, speed: settings.animationSpeed)
+            : closing ? IslandAnimation.collapse(reduceMotion: reduceMotion, speed: settings.animationSpeed)
+            : morphAnimation
+        withAnimation(animation) { presentation = next }
         if modeChanged {
             transitionCount += 1
             markAnimating()
@@ -150,15 +175,13 @@ final class IslandViewModel {
     }
 
     private func observeActivities() {
-        withObservationTracking {
-            _ = manager.primary?.id
-        } onChange: { [weak self] in
-            DispatchQueue.main.async {
-                guard let self else { return }
-                let has = self.manager.primary != nil
-                if has != self.presentation.hasActivity { self.apply(.activityAvailabilityChanged(hasActivity: has)) }
-                self.observeActivities()
-            }
-        }
+        manager.onChange = { [weak self] in self?.activitiesChanged() }
+        activitiesChanged()
+    }
+
+    /// Synchronous, so the presentation can never drift from the activity state.
+    private func activitiesChanged() {
+        let has = manager.primary != nil
+        if has != presentation.hasActivity { apply(.activityAvailabilityChanged(hasActivity: has)) }
     }
 }

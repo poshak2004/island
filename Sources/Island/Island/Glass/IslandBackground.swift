@@ -29,8 +29,6 @@ struct IslandBackground: View {
                 shape.stroke(Color.white.opacity(0.85), lineWidth: 1.5)
             }
         }
-        .compositingGroup()
-        .shadow(color: .black.opacity(glass > 0 ? 0.35 : 0), radius: 18, y: 8)
     }
 }
 

@@ -39,7 +39,6 @@ struct IslandRootView: View {
         .environment(\.colorScheme, .dark)
         .animation(model.morphAnimation, value: model.manager.primary?.id)
         .animation(model.morphAnimation, value: model.manager.secondaries.map(\.id))
-        .animation(model.morphAnimation, value: size)
     }
 
     @ViewBuilder
@@ -125,7 +124,7 @@ struct ExpandedLayout: View {
     var body: some View {
         VStack(spacing: 0) {
             header.frame(height: metrics.compactHeight)
-            Group {
+            ZStack(alignment: .top) {
                 if let primary = model.primary {
                     ExpandedActivityView(activity: primary)
                         .id(primary.id)
@@ -135,9 +134,16 @@ struct ExpandedLayout: View {
                         .transition(IslandAnimation.contentTransition(reduceMotion: model.reduceMotion))
                 }
             }
+            // Natural height, independent of the (animating) container — reported so the Island sizes to fit.
+            .fixedSize(horizontal: false, vertical: true)
+            .background(GeometryReader { geo in
+                Color.clear.preference(key: ExpandedContentHeightKey.self, value: geo.size.height)
+            })
+            .onPreferenceChange(ExpandedContentHeightKey.self) { [style = model.expandedStyle] h in
+                model.reportContentHeight(h, for: style)
+            }
             .padding(.horizontal, 22)
-            .padding(.top, 6)
-            .padding(.bottom, 16)
+            .padding(.top, IslandMetrics.expandedTopPadding)
             .frame(maxHeight: .infinity, alignment: .top)
         }
     }
@@ -154,16 +160,20 @@ struct ExpandedLayout: View {
             Color.clear.frame(width: metrics.notchSize.width)
             ActivitySwitcher(model: model)
                 .frame(maxWidth: .infinity, alignment: .trailing)
-                .padding(.trailing, 16)
+                .padding(.trailing, 20)
         }
     }
 
+    /// Only media names its source (the content already says what every other activity is).
     private func title(for a: Activity) -> String {
-        switch a.content {
-        case .media(let m): m.sourceName
-        default: a.kind.displayName
-        }
+        if case .media(let m) = a.content { return m.sourceName }
+        return ""
     }
+}
+
+struct ExpandedContentHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
 /// Small activity tabs in the expanded header. They share geometry with the compact bubbles.
@@ -184,7 +194,7 @@ struct ActivitySwitcher: View {
                             .contentShape(Circle())
                     }
                     .buttonStyle(PressableStyle())
-                    .islandMatched("bubble-\(a.id)", in: ns, isSource: false)
+                    .islandMatched("bubble-\(a.id)", in: ns)
                     .accessibilityLabel(ActivityPresentation.accessibilityLabel(for: a))
                     .accessibilityAddTraits(selected ? .isSelected : [])
                 }

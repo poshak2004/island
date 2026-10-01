@@ -7,6 +7,7 @@ func runAll() async -> Int32 {
     registerDisplayTests()
     registerSettingsTests()
     registerFeatureTests()
+    registerRegressionTests()
     return await TestKit.shared.run(filter: CommandLine.arguments.dropFirst().first)
 }
 

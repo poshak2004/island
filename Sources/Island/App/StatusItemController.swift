@@ -25,7 +25,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         toggle.state = env.settings.islandEnabled ? .on : .off
         toggle.target = self
         menu.addItem(toggle)
-        if env.settings.searchEnabled {
+        if env.settings.searchEnabled, env.settings.islandEnabled {
             let s = NSMenuItem(title: "Search… (\(env.settings.searchShortcut.display))", action: #selector(openSearch), keyEquivalent: "")
             s.target = self
             menu.addItem(s)

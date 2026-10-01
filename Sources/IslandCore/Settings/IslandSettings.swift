@@ -47,7 +47,7 @@ public final class IslandSettings {
     public var cornerRadius: Double = 32 { didSet { save() } }
     // Behavior
     public var hoverExpansion = true { didSet { save() } }
-    public var hoverDelay: Double = 0.12 { didSet { save() } }
+    public var hoverDelay: Double = 0.06 { didSet { save() } }
     public var autoCollapse = true { didSet { save() } }
     public var autoCollapseDelay: Double = 4 { didSet { save() } }
     public var animationSpeed: Double = 1.0 { didSet { save() } }
@@ -140,7 +140,8 @@ public final class IslandSettings {
         if let v = s.islandScale { islandScale = min(1.3, max(0.8, v)) }
         if let v = s.cornerRadius { cornerRadius = min(48, max(12, v)) }
         if let v = s.hoverExpansion { hoverExpansion = v }
-        if let v = s.hoverDelay { hoverDelay = min(1, max(0, v)) }
+        // 0.12 was the previous default; move untouched installs to the snappier one.
+        if let v = s.hoverDelay { hoverDelay = v == 0.12 ? 0.06 : min(1, max(0, v)) }
         if let v = s.autoCollapse { autoCollapse = v }
         if let v = s.autoCollapseDelay { autoCollapseDelay = min(30, max(1, v)) }
         if let v = s.animationSpeed { animationSpeed = min(2, max(0.5, v)) }

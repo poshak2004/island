@@ -99,6 +99,8 @@ struct IslandPillButton: View {
                 Text(title).font(.system(size: 12, weight: .semibold))
             }
             .foregroundStyle(tint)
+            .lineLimit(1)
+            .fixedSize()
             .padding(.horizontal, 11)
             .padding(.vertical, 6)
             .background(Capsule().fill(tint.opacity(hovering ? 0.26 : 0.16)))
@@ -131,7 +133,6 @@ struct ProgressRing: View {
                 .stroke(tint, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
         }
-        .animation(.linear(duration: 0.25), value: fraction)
     }
 }
 
@@ -150,7 +151,6 @@ struct LinearProgress: View {
             }
         }
         .frame(height: height)
-        .animation(.linear(duration: 0.25), value: fraction)
     }
 }
 

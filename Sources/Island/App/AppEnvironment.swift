@@ -114,7 +114,7 @@ final class AppEnvironment {
         case .expand: island.expand()
         case .collapse: island.collapse()
         case .toggleSearch:
-            guard settings.searchEnabled else { return }
+            guard settings.searchEnabled, settings.islandEnabled else { return }
             island.toggleSearch()
         case .presentTransient(let s): island.presentTransient(seconds: s)
         case .select(let id): manager.select(id: id)

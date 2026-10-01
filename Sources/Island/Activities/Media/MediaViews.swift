@@ -67,18 +67,11 @@ struct MediaCompactLeading: View {
 
 struct MediaCompactTrailing: View {
     let media: MediaActivity
+    @Environment(\.islandReduceMotion) private var reduceMotion
     var body: some View {
-        Group {
-            if media.playbackState == .playing {
-                Image(systemName: "waveform")
-                    .symbolEffect(.variableColor.iterative.dimInactiveLayers, options: .speed(0.6), isActive: true)
-            } else {
-                Image(systemName: "pause.fill")
-            }
-        }
-        .font(.system(size: 13, weight: .semibold))
-        .foregroundStyle(.white.opacity(0.9))
-        .accessibilityHidden(true)
+        EqualizerView(playing: media.playbackState == .playing, color: .white.withAlphaComponent(0.9), reduceMotion: reduceMotion)
+            .frame(width: 16, height: 13)
+            .accessibilityHidden(true)
     }
 }
 
@@ -95,9 +88,9 @@ struct MediaExpanded: View {
     @Environment(\.islandCommands) private var send
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 8) {
             HStack(spacing: 14) {
-                ArtworkView(media: media, size: 62, corner: 14)
+                ArtworkView(media: media, size: 56, corner: 13)
                     .islandMatched("media-artwork", in: ns)
                     .shadow(color: .black.opacity(0.4), radius: 8, y: 3)
                 VStack(alignment: .leading, spacing: 3) {
@@ -121,17 +114,17 @@ struct MediaExpanded: View {
                 }
             }
             MediaProgress(media: media) { send(.media(.seek(to: $0), sourceBundleID: media.sourceBundleID)) }
-            HStack(spacing: 26) {
-                IslandIconButton(symbol: "backward.fill", size: 16, label: "Previous track", enabled: media.controls.contains(.previous)) {
+            HStack(spacing: 28) {
+                IslandIconButton(symbol: "backward.fill", size: 15, label: "Previous track", enabled: media.controls.contains(.previous)) {
                     send(.media(.previous, sourceBundleID: media.sourceBundleID))
                 }
-                IslandIconButton(symbol: media.playbackState == .playing ? "pause.fill" : "play.fill", size: 22,
+                IslandIconButton(symbol: media.playbackState == .playing ? "pause.fill" : "play.fill", size: 19,
                                  label: media.playbackState == .playing ? "Pause" : "Play",
                                  enabled: media.controls.contains(.playPause)) {
                     send(.media(.togglePlayPause, sourceBundleID: media.sourceBundleID))
                 }
                 .contentTransition(.symbolEffect(.replace))
-                IslandIconButton(symbol: "forward.fill", size: 16, label: "Next track", enabled: media.controls.contains(.next)) {
+                IslandIconButton(symbol: "forward.fill", size: 15, label: "Next track", enabled: media.controls.contains(.next)) {
                     send(.media(.next, sourceBundleID: media.sourceBundleID))
                 }
             }

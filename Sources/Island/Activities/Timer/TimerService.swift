@@ -14,6 +14,15 @@ final class TimerService {
     init(bus: EventBus, sink: @escaping (ActivityUpdate) -> Void) {
         self.bus = bus
         self.sink = sink
+        // If a timer's activity is dismissed anywhere (Island, debug, expiry), forget the timer too,
+        // so it can't resurrect itself when it would have finished.
+        bus.subscribe { [weak self] event in
+            guard case .activityEnded(let id, .timer) = event, let self else { return }
+            if let uuid = UUID(uuidString: String(id.dropFirst("timer.".count))), self.timers[uuid] != nil {
+                self.timers[uuid] = nil
+                self.scheduleWake()
+            }
+        }
     }
 
     var activeCount: Int { timers.count }
