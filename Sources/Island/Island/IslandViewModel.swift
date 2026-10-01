@@ -125,7 +125,9 @@ final class IslandViewModel {
             if next.mode == .expanded, settings.hapticFeedback {
                 NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
             }
-            NSLog("Island mode → %@ (%@)", next.mode.rawValue, String(describing: input))
+            #if DEBUG
+            if ProcessInfo.processInfo.environment["ISLAND_TRACE"] != nil { NSLog("Island mode → %@ (%@)", next.mode.rawValue, String(describing: input)) }
+            #endif
             onModeChange?(next.mode)
         }
         scheduleAutoCollapse()

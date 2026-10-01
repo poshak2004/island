@@ -12,11 +12,10 @@ final class DebugRemote {
     init(env: AppEnvironment) {
         observer = DistributedNotificationCenter.default().addObserver(forName: Self.name, object: nil, queue: .main) { [weak env] note in
             let cmd = note.object as? String ?? ""
-            NSLog("Island debug remote: %@", cmd)
             MainActor.assumeIsolated {
                 guard let env else { return }
                 switch cmd {
-                case "expand": env.island.expand(); NSLog("mode after expand: %@ size %@", env.island.mode.rawValue, NSStringFromSize(env.island.islandSize))
+                case "expand": env.island.expand()
                 case "collapse": env.island.collapse()
                 case "search": env.island.toggleSearch()
                 case "next": env.manager.selectNext()
