@@ -6,18 +6,13 @@ import IslandCore
 /// Surfaces only useful, short-lived moments: plugged in, low battery thresholds, fully charged.
 @MainActor
 final class BatteryProvider {
-    struct Reading: Equatable {
-        var level: Int
-        var charging: Bool
-        var onAC: Bool
-    }
+    typealias Reading = BatteryTransitions.Reading
 
     private let sink: (ActivityUpdate) -> Void
     private let bus: EventBus
     private var source: CFRunLoopSource?
     private(set) var last: Reading?
     private var lowThresholdsShown: Set<Int> = []
-    static let lowThresholds = [20, 10, 5]
 
     init(bus: EventBus, sink: @escaping (ActivityUpdate) -> Void) {
         self.bus = bus
@@ -44,26 +39,10 @@ final class BatteryProvider {
 
     private func changed() {
         guard let now = Self.read() else { return }
-        let events = Self.events(from: last, to: now, shownLow: &lowThresholdsShown)
+        let events = BatteryTransitions.events(from: last, to: now, shownLow: &lowThresholdsShown)
         last = now
         bus.publish(.batteryLevel(percent: now.level, charging: now.charging))
         for reason in events { present(now, reason) }
-    }
-
-    /// Pure transition logic (unit-testable without IOKit).
-    static func events(from old: Reading?, to new: Reading, shownLow: inout Set<Int>) -> [BatteryActivity.Reason] {
-        guard let old else { return [] }
-        var out: [BatteryActivity.Reason] = []
-        if new.onAC && !old.onAC { out.append(.pluggedIn); shownLow.removeAll() }
-        if new.onAC, new.level >= 100, old.level < 100 { out.append(.full) }
-        if !new.onAC {
-            for t in lowThresholds where new.level <= t && old.level > t && !shownLow.contains(t) {
-                shownLow.insert(t)
-                out.append(.low)
-                break
-            }
-        }
-        return out
     }
 
     private func present(_ r: Reading, _ reason: BatteryActivity.Reason) {

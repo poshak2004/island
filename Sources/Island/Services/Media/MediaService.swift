@@ -13,7 +13,7 @@ final class MediaService {
     }
 
     static let activityID = "media"
-    static let pausedLinger: TimeInterval = 10 * 60
+    static let pausedLinger = MediaSourceSelector.pausedLinger
 
     private let sink: (ActivityUpdate) -> Void
     private let bus: EventBus
@@ -62,12 +62,8 @@ final class MediaService {
         publish(now: now)
     }
 
-    /// Pure selection rule (exposed for tests via `select(from:now:)`).
     static func select(from states: [String: SourceState], now: Date) -> String? {
-        let playing = states.filter { $0.value.media.playbackState == .playing }
-        if let best = playing.max(by: { ($0.value.lastPlayingAt, $1.key) < ($1.value.lastPlayingAt, $0.key) }) { return best.key }
-        let recent = states.filter { now.timeIntervalSince($0.value.lastPlayingAt) < pausedLinger }
-        return recent.max(by: { ($0.value.lastPlayingAt, $1.key) < ($1.value.lastPlayingAt, $0.key) })?.key
+        MediaSourceSelector.select(states.mapValues { .init(state: $0.media.playbackState, lastPlayingAt: $0.lastPlayingAt) }, now: now)
     }
 
     private func publish(now: Date) {

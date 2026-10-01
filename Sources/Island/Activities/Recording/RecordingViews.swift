@@ -7,8 +7,8 @@ struct RecordingCompactLeading: View {
     @Environment(\.islandNamespace) private var ns
     var body: some View {
         HStack(spacing: 5) {
+            // Static, like the system privacy indicator — a looping animation would cost CPU every frame.
             Circle().fill(IslandPalette.recording).frame(width: 7, height: 7)
-                .symbolEffectPulse()
             Image(systemName: recording.camera ? "video.fill" : "mic.fill")
                 .font(.system(size: 11, weight: .bold)).foregroundStyle(IslandPalette.recording)
         }
@@ -59,19 +59,3 @@ struct RecordingExpanded: View {
     }
 }
 
-private struct PulseModifier: ViewModifier {
-    @Environment(\.islandReduceMotion) private var reduceMotion
-    @State private var on = false
-    func body(content: Content) -> some View {
-        content
-            .opacity(reduceMotion ? 1 : (on ? 0.35 : 1))
-            .onAppear {
-                guard !reduceMotion else { return }
-                withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { on = true }
-            }
-    }
-}
-
-extension View {
-    func symbolEffectPulse() -> some View { modifier(PulseModifier()) }
-}
