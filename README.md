@@ -11,6 +11,20 @@ Island is one continuous surface that lives in your MacBook's notch. Live activi
 - **Search** (⌥Space): apps, files, actions, web results, and optional AI answers with citations, all inside the island.
 - Public Apple APIs only. No private frameworks, injection, or fake data.
 
+## Why I built it
+
+The notch is the one piece of screen every MacBook gives up, and it does nothing. Island turns
+it into a quiet status surface that shows only what matters right now. The product choices:
+
+- **One island, not a dashboard of widgets**: one primary activity plus up to two bubbles,
+  ordered by a deterministic priority so nothing fights for attention.
+- **Always on, so it must be cheap**: native Swift and AppKit at about 0.1% idle CPU.
+- **Private by default**: public Apple APIs only; calendar, clipboard and browser media are opt-in.
+- **Accessible from day one**: Reduce Motion, Reduce Transparency and Increase Contrast are
+  supported, not deferred.
+
+Built solo by [Poshak K](https://linkedin.com/in/poshak-k). Next steps are in [ROADMAP](ROADMAP.md).
+
 ## Install
 
 Download **Island.dmg** from [Releases](https://github.com/poshak2004/island/releases), drag Island to Applications, and open it.
