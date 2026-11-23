@@ -104,6 +104,12 @@ struct SelfTest {
         drain()
         check(manager.activity(id: ShelfService.activityID) == nil, "empty shelf leaves the Island")
         try? FileManager.default.removeItem(at: dropped)
+        env.commands.perform(.teleprompter(.start(text: "Reading while a file drag passes by.", title: "Test")))
+        env.shelf.setDragActive(true)
+        env.fileDrags.onChange?(false)
+        drain()
+        check(manager.primary?.kind == .teleprompter && island.mode == .expanded, "file drag doesn't close a teleprompter you're reading")
+        env.commands.perform(.teleprompter(.stop))
         manager.removeAll()
         island.collapse()
 

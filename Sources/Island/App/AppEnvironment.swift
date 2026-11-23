@@ -190,6 +190,7 @@ extension AppEnvironment {
             let width = self.island.metrics.expandedWidth - 44
             return TeleprompterStyle.lineCharacters(width: width, fontSize: CGFloat(self.settings.teleprompterFontSize))
         }
+        teleprompter.isPointerInside = { [weak self] in self?.island.mouseInside ?? false }
         teleprompter.onSessionChange = { [weak self] active in
             guard let self else { return }
             self.updateCaptureVisibility()
@@ -257,7 +258,7 @@ extension AppEnvironment {
         fileDrags.onChange = { [weak self] active in
             guard let self else { return }
             self.shelf.setDragActive(active)
-            if active { self.island.expand() } else if !self.island.mouseInside { self.island.collapse() }
+            if active { self.island.expand() } else { self.settleAfterShelf(confirmDrop: false) }
         }
         bus.subscribe { [weak self] event in
             if case .activityEnded(let id, .shelf) = event, id == ShelfService.activityID { self?.shelf.activityEnded() }
@@ -271,15 +272,24 @@ extension AppEnvironment {
         }
         shelf.handle(command)
         switch command {
-        case .airDrop:
-            island.collapse()
-        case .add:
-            // Show what landed for a moment, then step back to whatever was playing.
+        case .airDrop: settleAfterShelf(confirmDrop: false)
+        case .add: settleAfterShelf(confirmDrop: true)
+        case .remove, .clear: break
+        }
+    }
+
+    /// After a drag or drop: a teleprompter you were reading comes straight back, open. Otherwise a drop
+    /// shows the shelf for a moment, and an abandoned drag just closes the Island.
+    private func settleAfterShelf(confirmDrop: Bool) {
+        if let prompter = teleprompter.current, prompter.state != .finished {
+            manager.select(id: TeleprompterService.activityID)
+            island.expand()
+        } else if confirmDrop {
             island.collapse()
             manager.select(id: ShelfService.activityID)
             island.presentTransient(seconds: Self.shelfConfirmSeconds)
-        case .remove, .clear:
-            break
+        } else if !island.mouseInside {
+            island.collapse()
         }
     }
 }

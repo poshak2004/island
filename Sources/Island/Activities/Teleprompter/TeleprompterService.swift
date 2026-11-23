@@ -18,6 +18,8 @@ final class TeleprompterService {
     @ObservationIgnored var lineCharacters: () -> Int = { 40 }
     /// Called when the session starts, so the Island can open; and when it ends.
     @ObservationIgnored var onSessionChange: ((Bool) -> Void)?
+    /// Whether the pointer is over the Island right now (a session can start under it).
+    @ObservationIgnored var isPointerInside: () -> Bool = { false }
     /// Voice follow problems (permission denied, recogniser unavailable) for the UI to surface.
     private(set) var lastVoiceError: String?
 
@@ -76,6 +78,7 @@ final class TeleprompterService {
         var a = TeleprompterActivity(script: script, wordsPerMinute: settings.teleprompterSpeed, anchorDate: now)
         if settings.teleprompterVoiceFollow { a.setVoiceFollow(true, at: now) }
         if autoplay { a.play(at: now) }
+        if settings.teleprompterPauseOnHover, isPointerInside() { a.setHoverPaused(true, at: now) }
         let isNew = current == nil
         update(a)
         if isNew { onSessionChange?(true) }
@@ -124,7 +127,7 @@ final class TeleprompterService {
 
     private func syncVoice(_ a: TeleprompterActivity) {
         let wantsVoice = a.voiceFollow && a.state == .playing
-        if wantsVoice, !voice.isRunning {
+        if wantsVoice, !voice.isRunning, !voice.isStarting {
             Task { [weak self] in
                 guard let self else { return }
                 let error = await self.voice.start()
@@ -135,7 +138,7 @@ final class TeleprompterService {
                     self.update(a)
                 }
             }
-        } else if !wantsVoice, voice.isRunning {
+        } else if !wantsVoice, voice.isRunning || voice.isStarting {
             voice.stop()
         }
     }

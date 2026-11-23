@@ -19,7 +19,8 @@ public enum ScriptLayout {
         var wordIndex = 0
         var pendingBlank = false
 
-        for paragraph in text.components(separatedBy: .newlines) {
+        let unified = text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
+        for paragraph in unified.components(separatedBy: .newlines) {
             let tokens = paragraph.split(whereSeparator: \.isWhitespace).map(String.init)
             if tokens.isEmpty { pendingBlank = !lines.isEmpty; continue }
             if pendingBlank { lines.append(ScriptLine(text: "", firstWord: wordIndex, wordCount: 0)) }
@@ -239,8 +240,16 @@ public enum ScriptMatcher {
 
         var best: (end: Int, score: Int)?
         for end in low...high where words[end] == tail[k - 1] {
+            // Walk back through the script's spoken words only: punctuation-only tokens ("—", "&")
+            // are never heard, so they must not break the alignment.
             var score = 0
-            for i in 0..<k where end - i >= 0 && words[end - i] == tail[k - 1 - i] { score += 1 }
+            var j = end
+            for i in 0..<k {
+                while j >= 0, words[j].isEmpty { j -= 1 }
+                guard j >= 0 else { break }
+                if words[j] == tail[k - 1 - i] { score += 1 }
+                j -= 1
+            }
             guard score >= needed else { continue }
             if let b = best {
                 let closer = abs(end + 1 - current) < abs(b.end + 1 - current)

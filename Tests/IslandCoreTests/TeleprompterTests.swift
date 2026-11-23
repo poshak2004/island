@@ -105,6 +105,17 @@ func registerTeleprompterTests() {
         expectEqual(ScriptMatcher.advance(script: words, current: 2, heard: ["lives", "inn", "your", "notch"]), 6)
     }
 
+    test(S, "matcher steps over punctuation-only tokens in the script") {
+        let words = ScriptMatcher.normalize("hello — world & friends")
+        expectEqual(ScriptMatcher.advance(script: words, current: 0, heard: ["hello", "world"]), 3)
+        expectEqual(ScriptMatcher.advance(script: words, current: 3, heard: ["world", "friends"]), 5)
+    }
+
+    test(S, "wrap treats Windows line endings as single breaks") {
+        let lines = ScriptLayout.wrap("one\r\ntwo\r\n\r\nthree", maxChars: 20)
+        expectEqual(lines.map(\.text), ["one", "two", "", "three"])
+    }
+
     test(S, "parser recognises teleprompter commands") {
         expect(ActionRouter.parse("teleprompter").contains(.startTeleprompter))
         expect(ActionRouter.parse("Start prompter").contains(.startTeleprompter))
