@@ -6,7 +6,7 @@ import SwiftUI
 /// keyboard handling. Features never reference this type — they go through ActivityManager.
 @MainActor
 final class IslandWindowController {
-    let panel = IslandPanel()
+    private(set) var panel = IslandPanel()
     /// Core Animation surface (outline, glass, clip, morph). SwiftUI content lives inside it.
     let surface: IslandSurfaceView
     private var lastSurfaceMode: IslandMode = .idle
@@ -47,6 +47,36 @@ final class IslandWindowController {
         reposition()
         panel.orderFrontRegardless()
         installMonitors()
+        refreshMouseState()
+    }
+
+    /// Keep the Island out of screen sharing and recordings (teleprompter). Apps that capture with
+    /// ScreenCaptureKit and honour window sharing settings won't see it; not every app does.
+    func setHiddenFromCapture(_ hidden: Bool) {
+        if hidden {
+            panel.sharingType = .none
+            return
+        }
+        guard panel.sharingType == .none else { return }
+        panel.sharingType = .readOnly
+        // Island's window, once excluded, ignores being made shareable again (seen on macOS 27).
+        // A fresh window carrying the same content is shareable.
+        if panel.sharingType == .none { replacePanel() }
+    }
+
+    /// Moves the Island's content into a new window with identical state, then retires the old one.
+    private func replacePanel() {
+        let old = panel
+        let fresh = IslandPanel()
+        fresh.ignoresMouseEvents = old.ignoresMouseEvents
+        fresh.acceptsMouseMovedEvents = old.acceptsMouseMovedEvents
+        fresh.allowsKey = old.allowsKey
+        old.contentView = NSView()
+        fresh.contentView = surface
+        fresh.setFrame(old.frame, display: false)
+        if isVisible { fresh.orderFrontRegardless() }
+        old.orderOut(nil)
+        panel = fresh
         refreshMouseState()
     }
 

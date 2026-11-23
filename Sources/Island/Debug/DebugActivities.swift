@@ -33,4 +33,12 @@ enum DebugActivities {
                  content: .battery(BatteryActivity(level: level, isCharging: charging, reason: charging ? .pluggedIn : .low)),
                  expiresAt: Date().addingTimeInterval(4))
     }
+
+    static let sampleScript = """
+    Hi everyone, and thanks for joining. Today I want to show you Island, a Dynamic Island for the Mac notch.
+
+    It lives right where your camera is, so when you read this script you are looking straight at the people watching you.
+
+    The text scrolls at your speed. Hover to pause, press Escape to tuck it away, and click the notch to bring it back.
+    """
 }

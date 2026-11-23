@@ -32,6 +32,7 @@ struct IslandRootView: View {
             .environment(\.airPodsRevealed, model.airPods.map { $0.phase == .idle || $0.isRevealed } ?? true)
             .environment(\.islandCommands, IslandCommandSink { [weak model] c in model?.commands.perform(c) })
             .environment(\.colorScheme, .dark)
+            .environment(\.teleprompterFontSize, CGFloat(model.settings.teleprompterFontSize))
             .animation(IslandAnimation.contentChange(reduceMotion: model.reduceMotion), value: model.manager.primary?.id)
             .animation(IslandAnimation.contentChange(reduceMotion: model.reduceMotion), value: model.manager.secondaries.map(\.id))
     }
@@ -172,10 +173,14 @@ struct ExpandedLayout: View {
         }
     }
 
-    /// Only media names its source (the content already says what every other activity is).
+    /// Media names its source; the teleprompter names its script. Other content says what it is.
     private func title(for a: Activity) -> String {
-        if case .media(let m) = a.content { return m.sourceName }
-        return ""
+        switch a.content {
+        case .media(let m): return m.sourceName
+        case .teleprompter(let t): return t.script.title.isEmpty ? "Teleprompter" : t.script.title
+        case .shelf: return "File Shelf"
+        default: return ""
+        }
     }
 }
 

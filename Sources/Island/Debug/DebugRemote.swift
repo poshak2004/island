@@ -46,6 +46,15 @@ final class DebugRemote {
                 case "settings": env.commands.perform(.openSettings)
                 case "debugpanel": env.showDebugPanel()
                 case "quicktimer": env.timers.handle(.start(duration: 3, label: "Quick"))
+                case "prompter":
+                    env.teleprompter.start(text: DebugActivities.sampleScript, title: "Product demo", autoplay: true)
+                case "prompterstop": env.teleprompter.stop()
+                case "shelfdemo":
+                    let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../..").standardizedFileURL
+                    env.commands.perform(.shelf(.add(["README.md", "LICENSE", "Package.swift", "Resources/AppIcon.icns"].map { root.appendingPathComponent($0) })))
+                case "shelfdrag": env.fileDrags.onChange?(true)
+                case "shelfdragend": env.fileDrags.onChange?(false)
+                case "shelfclear": env.commands.perform(.shelf(.clear))
                 case "stress":
                     // Run from a timer (not inside this main-queue block) so deferred main-queue work can execute.
                     Timer.scheduledTimer(withTimeInterval: 0.01, repeats: false) { _ in MainActor.assumeIsolated { StressTest(env: env).run() } }
@@ -66,6 +75,7 @@ final class DebugRemote {
                         case "reduceTransparency": env.settings.forceReduceTransparency = on
                         case "highContrast": env.settings.forceHighContrast = on
                         case "searchEnabled": env.settings.searchEnabled = on
+                        case "prompterHide": env.settings.teleprompterHideFromCapture = on
                         default: break
                         }
                     }
@@ -89,6 +99,13 @@ extension DebugRemote {
         lines.append("geometry=\(String(describing: env.island.geometry?.notchRect)) notch=\(env.island.geometry?.hasNotch ?? false)")
         lines.append("polling=\(env.window.isPollingPointer) panelVisible=\(env.window.panel.isVisible) escapeArmed=\(env.window.escapeArmed) key=\(env.window.panel.isKeyWindow) monitors=\(env.window.monitorCount) visible=\(env.window.isVisible) mouseEvents=\(env.window.mouseEventCount) last=\(env.window.lastMouse) inside=\(env.island.mouseInside) hit=\(env.window.interactiveRect)")
         lines.append("airpods=\(env.airPods.phase.rawValue) revealed=\(env.airPods.isRevealed)")
+        if let t = env.teleprompter.current {
+            lines.append(String(format: "prompter=%@ pos=%.2f hoverPaused=%@ voice=%@ listening=%@ sharing=%d",
+                                t.state.rawValue, t.position(at: Date()), "\(t.hoverPaused)", "\(t.voiceFollow)", "\(t.listening)",
+                                env.window.panel.sharingType.rawValue))
+        } else {
+            lines.append("prompter=none sharing=\(env.window.panel.sharingType.rawValue)")
+        }
         lines.append("hotkey=\(env.features.hotKey?.registered?.display ?? "none") err=\(env.features.hotKey?.lastError ?? 0)")
         lines.append("window=\(env.window.panel.frame) ignoresMouse=\(env.window.panel.ignoresMouseEvents)")
         for e in env.manager.log.suffix(15) { lines.append("log: \(e.message)") }

@@ -31,6 +31,9 @@ public struct IslandPresentation: Equatable, Sendable {
     public private(set) var hovering = false
     public private(set) var hasActivity = false
     public var hoverExpansionEnabled = true
+    /// The primary activity is something you read while working (teleprompter): once open it stays
+    /// open through hover-out, clicks elsewhere and auto-collapse, until Escape or a command closes it.
+    public var pinsExpansion = false
 
     public init(hoverExpansionEnabled: Bool = true) {
         self.hoverExpansionEnabled = hoverExpansionEnabled
@@ -47,12 +50,12 @@ public struct IslandPresentation: Equatable, Sendable {
             if hoverExpansionEnabled, !isExpanded { expand(.hover) }
         case .hoverEnded:
             hovering = false
-            if mode == .expanded, reason != .command { rest() }
+            if mode == .expanded, reason != .command, !pinsExpansion { rest() }
         case .click:
-            if !isExpanded { expand(.click) }
+            if !isExpanded { expand(pinsExpansion ? .command : .click) }
         case .clickOutside:
             // A system-presented card (e.g. AirPods connected) holds for its full duration.
-            if isExpanded, reason != .transient { rest() }
+            if isExpanded, reason != .transient, !(pinsExpansion && mode == .expanded) { rest() }
         case .escape:
             if isExpanded { rest() }
         case .toggleSearch:
@@ -69,7 +72,7 @@ public struct IslandPresentation: Equatable, Sendable {
         case .transientEnded:
             if mode == .expanded, reason == .transient, !hovering { rest() }
         case .autoCollapse:
-            if mode == .expanded, !hovering { rest() }
+            if mode == .expanded, !hovering, !pinsExpansion { rest() }
         }
         return mode
     }

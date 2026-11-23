@@ -8,7 +8,7 @@ struct SettingsView: View {
     @State private var pane: Pane = .general
 
     enum Pane: String, CaseIterable, Identifiable {
-        case general = "General", appearance = "Appearance", behavior = "Behavior", activities = "Activities"
+        case general = "General", appearance = "Appearance", behavior = "Behavior", activities = "Activities", teleprompter = "Teleprompter"
         case search = "Search", ai = "AI", accessibility = "Accessibility", advanced = "Advanced"
         var id: String { rawValue }
         var symbol: String {
@@ -17,6 +17,7 @@ struct SettingsView: View {
             case .appearance: "paintbrush"
             case .behavior: "hand.point.up.left"
             case .activities: "square.stack.3d.up"
+            case .teleprompter: "text.alignleft"
             case .search: "magnifyingglass"
             case .ai: "sparkles"
             case .accessibility: "accessibility"
@@ -38,6 +39,7 @@ struct SettingsView: View {
                 case .appearance: AppearanceSettings(settings: settings)
                 case .behavior: BehaviorSettings(settings: settings)
                 case .activities: ActivitySettings(settings: settings, env: env)
+                case .teleprompter: TeleprompterSettings(settings: settings, env: env)
                 case .search: SearchSettings(settings: settings, env: env)
                 case .ai: AISettings(settings: settings)
                 case .accessibility: AccessibilitySettings(settings: settings, env: env)
@@ -91,6 +93,7 @@ private struct AppearanceSettings: View {
                     HStack { Slider(value: $settings.islandScale, in: 0.8...1.3); Text("\(Int(settings.islandScale * 100))%").monospacedDigit().frame(width: 40) }
                 }
                 Toggle("See-through compact Island", isOn: $settings.compactGlass)
+                    .help("Off matches Apple's Dynamic Island: solid black, so it reads as part of the hardware.")
                 Toggle("Show song title in compact Island", isOn: $settings.compactShowsTitle)
                 LabeledContent("Corner radius") {
                     HStack { Slider(value: $settings.cornerRadius, in: 12...48); Text("\(Int(settings.cornerRadius))").monospacedDigit().frame(width: 40) }
@@ -140,6 +143,8 @@ private struct ActivitySettings: View {
         (.network, "Going offline / back online"), (.device, "AirPods, headphones, speakers"),
         (.calendar, "Upcoming events (asks for Calendar access)"), (.clipboard, "Local “Copied” confirmations"),
         (.notification, "Short system events"),
+        (.teleprompter, "Scrolling script under the camera"),
+        (.shelf, "Drag files to the notch to keep or AirDrop them"),
     ]
 
     var body: some View {

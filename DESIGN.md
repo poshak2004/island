@@ -11,8 +11,10 @@
 | idle | exactly the notch (invisible) | black |
 | compact | notch + two wings | black, so it reads as part of the hardware |
 | minimal | notch-height circles to the right | black |
-| expanded | ~440 pt wide, content-driven height | Liquid Glass blended by Glass intensity |
+| expanded | ~440 pt wide, content-driven height | Liquid Glass blended by Glass intensity; solid black for the teleprompter, because text you read needs a steady background |
 | search | ~580 pt wide, grows with results | same |
+
+**Pinned surfaces.** The teleprompter is something you read while working in another app, so once open it ignores hover-out, outside clicks and auto-collapse. Escape tucks it into the compact Island without losing your place.
 
 **Restraint.** Compact states show one glanceable value. Looping animations are avoided (they cost CPU every frame). The only exceptions are the playing-media waveform and progress rings that update on real change. Short-lived events (charging, AirPods, downloads finished) appear for a few seconds and leave.
 

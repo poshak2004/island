@@ -1,5 +1,5 @@
 // QA input driver: synthesizes real mouse/keyboard events (needs Accessibility for the terminal).
-// usage: input move X Y | click X Y | key CODE | trusted | where
+// usage: input move X Y | click X Y | rclick X Y | drag X1 Y1 X2 Y2 STEPS MS [HOLD_MS] | key CODE | trusted | where
 import AppKit
 import ApplicationServices
 let a = CommandLine.arguments
@@ -17,6 +17,32 @@ case "glide": // glide X1 Y1 X2 Y2 STEPS MS
         CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: CGPoint(x: x1 + (x2 - x1) * t, y: y1 + (y2 - y1) * t), mouseButton: .left)?.post(tap: .cghidEventTap)
         usleep(useconds_t(ms * 1000))
     }
+case "drag": // drag X1 Y1 X2 Y2 STEPS MS HOLD_MS — press, drag, hover at the end, release
+    let x1 = Double(a[2])!, y1 = Double(a[3])!, x2 = Double(a[4])!, y2 = Double(a[5])!, n = Int(a[6])!, ms = Double(a[7])!
+    let hold = a.count > 8 ? Double(a[8])! : 600
+    let start = CGPoint(x: x1, y: y1)
+    CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: start, mouseButton: .left)?.post(tap: .cghidEventTap)
+    usleep(100_000)
+    CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown, mouseCursorPosition: start, mouseButton: .left)?.post(tap: .cghidEventTap)
+    usleep(150_000)
+    for i in 1...n {
+        let t = Double(i) / Double(n)
+        CGEvent(mouseEventSource: nil, mouseType: .leftMouseDragged, mouseCursorPosition: CGPoint(x: x1 + (x2 - x1) * t, y: y1 + (y2 - y1) * t), mouseButton: .left)?.post(tap: .cghidEventTap)
+        usleep(useconds_t(ms * 1000))
+    }
+    let end = CGPoint(x: x2, y: y2)
+    for _ in 0..<Int(hold / 50) { // keep wiggling so the drag session updates its target
+        CGEvent(mouseEventSource: nil, mouseType: .leftMouseDragged, mouseCursorPosition: end, mouseButton: .left)?.post(tap: .cghidEventTap)
+        usleep(50_000)
+    }
+    CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp, mouseCursorPosition: end, mouseButton: .left)?.post(tap: .cghidEventTap)
+case "rclick":
+    let p = flip(Double(a[2])!, Double(a[3])!)
+    CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: p, mouseButton: .right)?.post(tap: .cghidEventTap)
+    usleep(30000)
+    CGEvent(mouseEventSource: nil, mouseType: .rightMouseDown, mouseCursorPosition: p, mouseButton: .right)?.post(tap: .cghidEventTap)
+    usleep(40000)
+    CGEvent(mouseEventSource: nil, mouseType: .rightMouseUp, mouseCursorPosition: p, mouseButton: .right)?.post(tap: .cghidEventTap)
 case "click":
     let p = flip(Double(a[2])!, Double(a[3])!)
     CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: p, mouseButton: .left)?.post(tap: .cghidEventTap)

@@ -8,13 +8,14 @@ public enum AppAction: Equatable, Sendable, Hashable {
     case openApplication(name: String)
     case findFile(query: String)
     case openURL(URL)
+    case startTeleprompter
 
     public enum MediaVerb: String, Sendable, Hashable { case play, pause, toggle, next, previous }
 
     public var safety: SafetyLevel {
         switch self {
         case .startTimer, .media, .webSearch, .findFile: .safe
-        case .openApplication, .openURL: .safe
+        case .openApplication, .openURL, .startTeleprompter: .safe
         }
     }
 
@@ -35,6 +36,7 @@ public enum AppAction: Equatable, Sendable, Hashable {
         case .openApplication(let n): return "Open \(n)"
         case .findFile(let q): return "Find files named “\(q)”"
         case .openURL(let u): return "Open \(u.host ?? u.absoluteString)"
+        case .startTeleprompter: return "Start teleprompter"
         }
     }
 
@@ -46,6 +48,7 @@ public enum AppAction: Equatable, Sendable, Hashable {
         case .openApplication: "app"
         case .findFile: "doc.text.magnifyingglass"
         case .openURL: "link"
+        case .startTeleprompter: "text.alignleft"
         }
     }
 }

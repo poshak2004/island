@@ -16,6 +16,13 @@ public enum ActionRouter {
             }
         }
 
+        // Teleprompter: "teleprompter", "start prompter", "prompter"
+        let words = Set(lower.split(whereSeparator: { !$0.isLetter }).map(String.init))
+        let opensSomething = lower.hasPrefix("open ") || lower.hasPrefix("launch ")
+        if !opensSomething, !words.isDisjoint(with: ["teleprompter", "prompter"]) {
+            out.append(.startTeleprompter)
+        }
+
         // Media
         let media: [(String, AppAction.MediaVerb)] = [
             ("next track", .next), ("next song", .next), ("skip", .next), ("previous track", .previous), ("previous song", .previous),
@@ -38,7 +45,7 @@ public enum ActionRouter {
             let name = String(text.dropFirst(prefix.count)).trimmingCharacters(in: .whitespaces)
             if let url = URL(string: name), let scheme = url.scheme, ["http", "https"].contains(scheme.lowercased()) {
                 out.append(.openURL(url))
-            } else if !name.isEmpty, !name.lowercased().contains("timer") {
+            } else if !name.isEmpty, !name.lowercased().contains("timer"), !name.lowercased().contains("prompter") {
                 out.append(.openApplication(name: name))
             }
             break

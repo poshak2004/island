@@ -10,6 +10,7 @@ enum ActivityPresentation {
         case .media: return showsTitle ? .wide : .standard
         case .device(let d): return d.airPods != nil ? .standard : .wide
         case .calendar, .clipboard, .event, .network: return .wide
+        case .teleprompter, .shelf: return .standard
         default: return .standard
         }
     }
@@ -22,6 +23,8 @@ enum ActivityPresentation {
         case .download: return .download
         case .device: return .device
         case .recording, .battery, .network, .calendar, .clipboard, .event: return .event
+        case .teleprompter: return .teleprompter
+        case .shelf: return .shelf
         }
     }
 
@@ -37,6 +40,8 @@ enum ActivityPresentation {
         case .calendar(let c): "Calendar: \(c.title)"
         case .clipboard(let c): "Copied \(c.preview)"
         case .event(let e): [e.title, e.subtitle].compactMap { $0 }.joined(separator: ", ")
+        case .shelf(let s): s.isDropTarget ? "File shelf, drop files here" : "File shelf, \(ShelfStyle.label(s))"
+        case .teleprompter(let t): "Teleprompter, \(Int(t.progress(at: Date()) * 100)) percent, \(TeleprompterStyle.status(t))"
         }
     }
 }
@@ -56,6 +61,8 @@ struct CompactLeadingView: View {
         case .calendar(let c): SimpleCompactLeading(symbol: "calendar", tint: IslandPalette.hex(c.calendarColorHex) ?? .red, text: c.title, id: activity.id)
         case .clipboard(let c): SimpleCompactLeading(symbol: "doc.on.clipboard", tint: .white, text: c.preview, id: activity.id)
         case .event(let e): SimpleCompactLeading(symbol: e.symbol, tint: IslandPalette.hex(e.tintHex) ?? .white, text: e.title, id: activity.id)
+        case .teleprompter(let t): TeleprompterCompactLeading(prompter: t)
+        case .shelf(let s): ShelfCompactLeading(shelf: s)
         }
     }
 }
@@ -74,6 +81,8 @@ struct CompactTrailingView: View {
         case .calendar(let c): CalendarCompactTrailing(event: c)
         case .clipboard: CompactTrailingText(text: "Copied", tint: IslandPalette.secondaryText)
         case .event(let e): CompactTrailingText(text: e.subtitle ?? "", tint: IslandPalette.secondaryText)
+        case .teleprompter(let t): TeleprompterCompactTrailing(prompter: t)
+        case .shelf(let s): ShelfCompactTrailing(shelf: s)
         }
     }
 }
@@ -97,6 +106,8 @@ struct MinimalView: View {
         case .calendar(let c): Image(systemName: "calendar").font(.system(size: 11, weight: .bold)).foregroundStyle(IslandPalette.hex(c.calendarColorHex) ?? .red)
         case .clipboard: Image(systemName: "doc.on.clipboard").font(.system(size: 11, weight: .bold)).foregroundStyle(.white)
         case .event(let e): Image(systemName: e.symbol).font(.system(size: 11, weight: .bold)).foregroundStyle(IslandPalette.hex(e.tintHex) ?? .white)
+        case .teleprompter(let t): TeleprompterMinimal(prompter: t)
+        case .shelf(let s): ShelfMinimal(shelf: s)
         }
     }
 }
@@ -116,6 +127,8 @@ struct ExpandedActivityView: View {
         case .calendar(let c): CalendarExpanded(event: c, id: activity.id)
         case .clipboard(let c): EventLikeExpanded(symbol: "doc.on.clipboard", tint: .white, title: "Copied to clipboard", subtitle: c.preview, id: activity.id)
         case .event(let e): EventLikeExpanded(symbol: e.symbol, tint: IslandPalette.hex(e.tintHex) ?? .white, title: e.title, subtitle: e.subtitle, id: activity.id)
+        case .teleprompter(let t): TeleprompterExpanded(prompter: t)
+        case .shelf(let s): ShelfExpanded(shelf: s)
         }
     }
 }

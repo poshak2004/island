@@ -20,6 +20,8 @@
 	<key>NSHumanReadableCopyright</key><string>Open source · github.com/poshak2004/island</string>
 	<key>NSAppleEventsUsageDescription</key><string>Island reads what's playing in Music, Spotify, VLC and (if you enable it) your browser, and sends play/pause/skip when you press the Island's controls.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key><string>Island shows your next calendar event in the Island when you enable the Calendar activity.</string>
+	<key>NSMicrophoneUsageDescription</key><string>Island listens to you only while teleprompter voice follow is on, so the script scrolls as you speak. Audio is recognised on this Mac and never sent anywhere.</string>
+	<key>NSSpeechRecognitionUsageDescription</key><string>Teleprompter voice follow uses on-device speech recognition to keep the script in step with your voice. Nothing leaves your Mac.</string>
 	<key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
 </dict>
 </plist>

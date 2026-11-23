@@ -30,6 +30,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             s.target = self
             menu.addItem(s)
         }
+        if env.settings.islandEnabled, env.settings.enabledKinds.contains(.teleprompter) {
+            let running = env.teleprompter.isActive
+            add(running ? "Close Teleprompter" : "Start Teleprompter", #selector(toggleTeleprompter), key: "")
+        }
         menu.addItem(.separator())
         add("Settings…", #selector(openSettings), key: ",")
         add("Debug Panel", #selector(openDebug), key: "d")
@@ -47,6 +51,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     @objc private func openSearch() {
         // Let the menu finish closing before the panel takes key focus.
         DispatchQueue.main.async { self.env.commands.perform(.ui(.toggleSearch)) }
+    }
+    @objc private func toggleTeleprompter() {
+        if env.teleprompter.isActive { env.teleprompter.stop() } else { env.startTeleprompterFromSettings() }
     }
     @objc private func openSettings() { env.commands.perform(.openSettings) }
     @objc private func openDebug() { env.showDebugPanel() }
