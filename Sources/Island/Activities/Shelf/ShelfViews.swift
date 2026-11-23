@@ -127,6 +127,7 @@ private struct ShelfTile: View {
         .frame(width: ShelfStyle.tileWidth, height: 76, alignment: .top)
         .padding(.top, 2)
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.white.opacity(hovering ? 0.1 : 0)))
+        .overlay(FileDragSource(url: item.url))
         .overlay(alignment: .topTrailing) {
             if hovering {
                 Button { send(.shelf(.remove(item.id))) } label: {
@@ -141,7 +142,6 @@ private struct ShelfTile: View {
         }
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
-        .onDrag { NSItemProvider(contentsOf: item.url) ?? NSItemProvider() }
         .contextMenu {
             Button("Open") { send(.openFile(item.url)) }
             Button("Show in Finder") { send(.revealFile(item.url)) }

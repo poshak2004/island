@@ -30,6 +30,8 @@ hover; away;      check "hover out collapses" "$(mode)" compact
 for i in 1 2 3 4 5 6; do "$Q" glide 735 300 735 14 4 4; "$Q" glide 735 14 735 300 4 4; done; sleep 0.8
 check "rapid hover in/out settles" "$(mode)" compact
 
+# Park the pointer away first: web results render below the field and hovering a row selects it.
+away
 "$Q" key 49 o; sleep 0.7
 if [[ "$(mode)" == search ]]; then
   check "⌥Space opens search" search search
