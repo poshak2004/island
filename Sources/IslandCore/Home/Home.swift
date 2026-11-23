@@ -251,11 +251,14 @@ public enum HomeSuggestionEngine {
         if let d = c.recentDownload, c.now.timeIntervalSince(d.at) <= freshDownload {
             out.append(.shelveDownload(name: d.name, url: d.url))
         }
-        let habits = c.usage.entries.values
-            .map { ($0.item, c.usage.score(for: $0.item, at: c.now)) }
-            .filter { $0.1 >= habitScore && !c.pinned.contains($0.0) }
-            .sorted { $0.1 != $1.1 ? $0.1 > $1.1 : $0.0.key < $1.0.key }
-        out += habits.map { .frequent($0.0) }
+        // Spelled out step by step: older compilers time out type-checking this as one chain.
+        var habits: [(item: HomeItem, score: Double)] = []
+        for entry in c.usage.entries.values {
+            let score: Double = c.usage.score(for: entry.item, at: c.now)
+            if score >= habitScore, !c.pinned.contains(entry.item) { habits.append((entry.item, score)) }
+        }
+        habits.sort { a, b in a.score != b.score ? a.score > b.score : a.item.key < b.item.key }
+        for habit in habits { out.append(HomeSuggestion.frequent(habit.item)) }
         return Array(out.prefix(maxSuggestions))
     }
 }
