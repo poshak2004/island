@@ -17,6 +17,8 @@ final class AppEnvironment {
     let teleprompter: TeleprompterService
     let shelf: ShelfService
     let fileDrags = FileDragWatcher()
+    let shortcuts = ShortcutsCatalog()
+    let home: HomeModel
     let media: MediaService
     let downloads: DownloadProvider
     let battery: BatteryProvider
@@ -39,6 +41,7 @@ final class AppEnvironment {
         timers = TimerService(bus: bus, sink: submit)
         teleprompter = TeleprompterService(settings: settings, sink: submit)
         shelf = ShelfService(sink: submit)
+        home = HomeModel(settings: settings, shortcuts: shortcuts)
         media = MediaService(bus: bus, sink: submit)
         downloads = DownloadProvider(bus: bus, sink: submit)
         battery = BatteryProvider(bus: bus, sink: submit)
@@ -66,6 +69,7 @@ final class AppEnvironment {
 
         wireTeleprompter()
         wireShelf()
+        wireHome()
 
         display.selection = settings.display
         display.onChange = { [weak self] g in self?.geometryChanged(g) }
@@ -268,12 +272,16 @@ extension AppEnvironment {
     fileprivate func handleShelf(_ command: ShelfCommand) {
         switch command {
         case .add, .airDrop: fileDrags.dropCompleted()
-        case .remove, .clear: break
+        case .remove, .clear, .reveal: break
         }
         shelf.handle(command)
         switch command {
         case .airDrop: settleAfterShelf(confirmDrop: false)
         case .add: settleAfterShelf(confirmDrop: true)
+        case .reveal:
+            manager.select(id: ShelfService.activityID)
+            island.showHome(false)
+            island.expand()
         case .remove, .clear: break
         }
     }
@@ -290,6 +298,48 @@ extension AppEnvironment {
             island.presentTransient(seconds: Self.shelfConfirmSeconds)
         } else if !island.mouseInside {
             island.collapse()
+        }
+    }
+}
+
+// MARK: Home
+
+extension AppEnvironment {
+    fileprivate func wireHome() {
+        island.home = home
+        home.commands = commands
+        commands.runShortcut = { [weak self] name in self?.shortcuts.run(name) }
+        shortcuts.prewarm()
+        HomeApps.installed = { [weak self] in self?.features.apps.loadApps() ?? [] }
+        search.onExecuted = { [weak self] result in self?.home.noteOpened(result) }
+        search.onPin = { [weak self] item in self?.home.pin(item) }
+        home.context = { [weak self] in
+            var c = HomeContext(now: Date())
+            guard let self else { return c }
+            c.event = self.calendar.upcoming
+            c.cameraOn = self.manager.ordered.contains { a in
+                if case .recording(let r) = a.content { return r.camera }
+                return false
+            }
+            c.hasTeleprompterScript = !self.settings.teleprompterScript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            return c
+        }
+        bus.subscribe { [weak self] event in
+            guard let self, case .downloadCompleted(let filename) = event else { return }
+            let url = self.downloads.directory.appendingPathComponent(filename)
+            if FileManager.default.fileExists(atPath: url.path) {
+                self.home.recentDownload = HomeFile(name: filename, url: url, at: Date())
+            }
+        }
+        // An empty shelf opened from Home goes away once the Island closes.
+        // Only an actual close counts: opening from idle passes through compact first.
+        let previous = island.onModeChange
+        var wasOpen = island.presentation.isExpanded
+        island.onModeChange = { [weak self] mode in
+            previous?(mode)
+            let isOpen = mode == .expanded || mode == .search
+            if wasOpen, !isOpen { self?.shelf.conceal() }
+            wasOpen = isOpen
         }
     }
 }

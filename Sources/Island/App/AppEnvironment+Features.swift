@@ -32,6 +32,7 @@ final class FeatureHub {
         debug.setOverlay(s.performanceOverlay, env: env)
 
         var providers: [any SearchProvider] = [ActionSearchProvider(webSearchURL: Self.browserSearchURL), apps]
+        if env.shortcuts.isAvailable { providers.append(ShortcutsSearchProvider(catalog: env.shortcuts)) }
         if s.fileSearchEnabled { providers.append(FileSearchProvider()) }
         if s.webSearchEnabled {
             if s.webSearchProviders.contains("wikipedia") { providers.append(WikipediaSearchProvider()) }

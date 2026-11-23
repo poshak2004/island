@@ -63,7 +63,7 @@ check "still expanded under pointer" "$(mode)" expanded
 "$Q" click 300 650; sleep 0.6; check "click outside collapses" "$(mode)" compact
 "$R" clear; sleep 0.4; away; check "idle when empty" "$(mode)" idle
 hover; check "idle hover shows home" "$(mode)" expanded
-scripts/qa/press.sh "5m"; sleep 0.5; dump; check "home quick timer" "$(grep -c '^primary=timer' "$D" | tr -d ' ')" 1
+scripts/qa/press.sh "25 min"; sleep 0.5; dump; check "home quick timer" "$(grep -c '^primary=timer' "$D" | tr -d ' ')" 1
 away; "$R" clear
 
 echo "Settings"

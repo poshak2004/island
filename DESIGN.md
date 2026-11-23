@@ -16,6 +16,8 @@
 
 **Pinned surfaces.** The teleprompter is something you read while working in another app, so once open it ignores hover-out, outside clicks and auto-collapse. Escape tucks it into the compact Island without losing your place.
 
+**Home.** One way in to do anything (the search bar), what's useful right now (at most three suggestions: a meeting starting soon, a fresh download, habits), and what you chose (pins). Suggestions never repeat a pin. What you open is remembered only on this Mac, with older uses counting less (two-week half-life).
+
 **Restraint.** Compact states show one glanceable value. Looping animations are avoided (they cost CPU every frame). The only exceptions are the playing-media waveform and progress rings that update on real change. Short-lived events (charging, AirPods, downloads finished) appear for a few seconds and leave.
 
 **Accessibility.** VoiceOver labels describe each activity. The island offers an Expand/Collapse action. Bubbles are buttons. Increase Contrast adds outlines. Reduce Transparency removes glass. Keyboard search supports ↑ ↓ ↩ ⎋.

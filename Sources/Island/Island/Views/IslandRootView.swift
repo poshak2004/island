@@ -33,6 +33,8 @@ struct IslandRootView: View {
             .environment(\.islandCommands, IslandCommandSink { [weak model] c in model?.commands.perform(c) })
             .environment(\.colorScheme, .dark)
             .environment(\.teleprompterFontSize, CGFloat(model.settings.teleprompterFontSize))
+            .environment(\.teleprompterReady, !model.settings.teleprompterScript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && !model.manager.ordered.contains { $0.kind == .teleprompter })
             .animation(IslandAnimation.contentChange(reduceMotion: model.reduceMotion), value: model.manager.primary?.id)
             .animation(IslandAnimation.contentChange(reduceMotion: model.reduceMotion), value: model.manager.secondaries.map(\.id))
     }
@@ -134,12 +136,12 @@ struct ExpandedLayout: View {
         VStack(spacing: 0) {
             header.frame(height: metrics.compactHeight)
             ZStack(alignment: .top) {
-                if let primary = model.primary {
+                if model.isShowingHome, let home = model.home {
+                    HomeView(home: home)
+                        .transition(IslandAnimation.contentTransition(reduceMotion: model.reduceMotion))
+                } else if let primary = model.primary {
                     ExpandedActivityView(activity: primary)
                         .id(primary.id)
-                        .transition(IslandAnimation.contentTransition(reduceMotion: model.reduceMotion))
-                } else {
-                    HomeView()
                         .transition(IslandAnimation.contentTransition(reduceMotion: model.reduceMotion))
                 }
             }
@@ -157,10 +159,18 @@ struct ExpandedLayout: View {
         }
     }
 
-    private var header: some View {
+    @ViewBuilder private var header: some View {
+        if model.isShowingHome, model.primary == nil, let home = model.home {
+            HomeHeader(home: home, notchWidth: metrics.notchSize.width)
+        } else {
+            activityHeader
+        }
+    }
+
+    private var activityHeader: some View {
         HStack(spacing: 0) {
             HStack(spacing: 6) {
-                if let p = model.primary { Text(title(for: p)).lineLimit(1) }
+                if model.showsHome { Text("Home").lineLimit(1) } else if let p = model.primary { Text(title(for: p)).lineLimit(1) }
             }
             .font(.system(size: 11, weight: .semibold))
             .foregroundStyle(IslandPalette.secondaryText)
@@ -196,13 +206,29 @@ struct ActivitySwitcher: View {
 
     var body: some View {
         let items = Array(model.manager.ordered.prefix(model.manager.maxSecondaries + 1))
-        if items.count > 1 {
+        if !items.isEmpty, model.home != nil {
             HStack(spacing: 4) {
+                // Home is always one click away, even while something is playing.
+                Button { model.showHome(true) } label: {
+                    Image(systemName: "house.fill")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 24, height: 24)
+                        .background(Circle().fill(.white.opacity(model.showsHome ? 0.2 : 0.06)))
+                        .contentShape(Circle())
+                }
+                .buttonStyle(PressableStyle())
+                .help("Home")
+                .accessibilityLabel("Home")
+                .accessibilityAddTraits(model.showsHome ? .isSelected : [])
                 ForEach(items) { a in
-                    let selected = a.id == model.primary?.id
-                    Button { model.commands.perform(.ui(.select(activityID: a.id))) } label: {
+                    let selected = a.id == model.primary?.id && !model.showsHome
+                    Button {
+                        model.showHome(false)
+                        model.commands.perform(.ui(.select(activityID: a.id)))
+                    } label: {
                         MinimalView(activity: a)
-                            .frame(width: 20, height: 20)
+                            .frame(width: 24, height: 24)
                             .background(Circle().fill(.white.opacity(selected ? 0.2 : 0.06)))
                             .contentShape(Circle())
                     }

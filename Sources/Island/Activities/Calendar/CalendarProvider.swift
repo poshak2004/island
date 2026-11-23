@@ -11,6 +11,8 @@ final class CalendarProvider {
     private var observer: NSObjectProtocol?
     private var wakeTask: Task<Void, Never>?
     private(set) var status: String = "Off"
+    /// The next (or current) event in the coming day, with its video-call link if it has one.
+    private(set) var upcoming: HomeEvent?
     static let lookahead: TimeInterval = 15 * 60
 
     init(sink: @escaping (ActivityUpdate) -> Void) { self.sink = sink }
@@ -33,6 +35,7 @@ final class CalendarProvider {
         observer = nil
         wakeTask?.cancel()
         sink(.remove(id: "calendar"))
+        upcoming = nil
         status = "Off"
     }
 
@@ -43,6 +46,10 @@ final class CalendarProvider {
         let predicate = store.predicateForEvents(withStart: now.addingTimeInterval(-12 * 3600), end: now.addingTimeInterval(24 * 3600), calendars: nil)
         let events = store.events(matching: predicate).filter { !$0.isAllDay && $0.endDate > now }.sorted { $0.startDate < $1.startDate }
         var nextWake: Date?
+        upcoming = events.first.map { e in
+            HomeEvent(title: e.title ?? "Event", start: e.startDate,
+                      joinURL: MeetingLink.find(in: [e.url?.absoluteString, e.location, e.notes]))
+        }
         if let e = events.first {
             if e.startDate.timeIntervalSince(now) <= Self.lookahead {
                 let soon = e.startDate.timeIntervalSince(now) <= 120

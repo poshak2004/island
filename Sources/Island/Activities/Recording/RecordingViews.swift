@@ -33,7 +33,20 @@ struct RecordingExpanded: View {
     let id: String
     @Environment(\.islandNamespace) private var ns
     @Environment(\.islandContentActive) private var active
+    @Environment(\.teleprompterReady) private var teleprompterReady
+    @Environment(\.islandCommands) private var send
     var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            card
+            if recording.camera, teleprompterReady {
+                IslandPillButton(title: "Open Teleprompter", symbol: TeleprompterStyle.symbol, tint: TeleprompterStyle.tint) {
+                    send(.action(.startTeleprompter))
+                }
+            }
+        }
+    }
+
+    private var card: some View {
         TimelineView(.periodic(from: .now, by: clockInterval(active: active))) { ctx in
             HStack(spacing: 14) {
                 Image(systemName: recording.camera ? "video.fill" : "mic.fill")

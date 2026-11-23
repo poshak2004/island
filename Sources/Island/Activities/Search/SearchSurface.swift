@@ -60,6 +60,12 @@ struct SearchSurface: View {
                                 .id(r.id)
                                 .onTapGesture { model.execute(r) }
                                 .onHover { if $0 { model.select(r.id) } }
+                                .contextMenu {
+                                    Button("Open") { model.execute(r) }
+                                    if let item = HomeItem(result: r), let pin = model.onPin {
+                                        Button("Pin to Home") { pin(item) }
+                                    }
+                                }
                         }
                     }
                 }

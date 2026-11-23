@@ -110,6 +110,28 @@ struct SelfTest {
         drain()
         check(manager.primary?.kind == .teleprompter && island.mode == .expanded, "file drag doesn't close a teleprompter you're reading")
         env.commands.perform(.teleprompter(.stop))
+
+        manager.removeAll()
+        island.collapse()
+        island.expand()
+        check(island.isShowingHome && island.expandedStyle == .home, "home shows when nothing is live")
+        island.collapse()
+        manager.submit(.upsert(DebugActivities.music()))
+        island.expand()
+        island.showHome(true)
+        check(island.isShowingHome && island.expandedStyle == .home, "home reachable while music plays")
+        island.collapse()
+        check(!island.showsHome, "closing returns the house tab to the activity")
+        manager.removeAll()
+        env.commands.perform(.shelf(.reveal))
+        drain()
+        check(manager.primary?.kind == .shelf && island.mode == .expanded, "shelf tile opens an empty shelf")
+        island.collapse()
+        drain()
+        check(manager.activity(id: ShelfService.activityID) == nil, "empty shelf goes away when the Island closes")
+        check(HomeItem(result: SearchResult(id: "x", category: .application, providerID: "t", title: "Notes",
+                                             command: .launchApplication(URL(fileURLWithPath: "/System/Applications/Notes.app")))) != nil,
+              "search results can be pinned")
         manager.removeAll()
         island.collapse()
 

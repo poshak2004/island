@@ -55,6 +55,13 @@ final class DebugRemote {
                 case "shelfdrag": env.fileDrags.onChange?(true)
                 case "shelfdragend": env.fileDrags.onChange?(false)
                 case "shelfclear": env.commands.perform(.shelf(.clear))
+                case "homedemo":
+                    env.home.eventOverride = HomeEvent(title: "Standup", start: Date().addingTimeInterval(7 * 60),
+                                                       joinURL: URL(string: "https://meet.google.com/abc-defg-hij"))
+                    let readme = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../../README.md").standardizedFileURL
+                    env.home.recentDownload = HomeFile(name: "README.md", url: readme, at: Date())
+                case "homedemoend": env.home.eventOverride = nil; env.home.recentDownload = nil
+                case "homereset": env.settings.homePins = HomePins.defaults
                 case "stress":
                     // Run from a timer (not inside this main-queue block) so deferred main-queue work can execute.
                     Timer.scheduledTimer(withTimeInterval: 0.01, repeats: false) { _ in MainActor.assumeIsolated { StressTest(env: env).run() } }

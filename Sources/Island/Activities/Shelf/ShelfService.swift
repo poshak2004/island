@@ -16,6 +16,8 @@ final class ShelfService {
     private(set) var items: [ShelfItem] = []
     private(set) var isDropTarget = false
     private(set) var lastError: String?
+    /// Shown on request (Home tile) even when empty; cleared when the Island closes.
+    private var revealed = false
     private var running = false
 
     init(defaults: UserDefaults = .standard, sink: @escaping (ActivityUpdate) -> Void) {
@@ -47,6 +49,10 @@ final class ShelfService {
         case .clear:
             items = []
             save()
+        case .reveal:
+            revealed = true
+            publish(priority: .high)
+            return
         case .airDrop(let urls):
             isDropTarget = false
             send(urls.isEmpty ? items.map(\.url) : urls)
@@ -66,14 +72,22 @@ final class ShelfService {
 
     // MARK: Internals
 
-    private func publish() {
+    /// The Island closed: an empty, revealed shelf goes away again.
+    func conceal() {
+        guard revealed else { return }
+        revealed = false
+        publish()
+    }
+
+    private func publish(priority requested: ActivityPriority? = nil) {
         guard running else { return }
-        guard !items.isEmpty || isDropTarget else {
+        guard !items.isEmpty || isDropTarget || revealed else {
             sink(.remove(id: Self.activityID))
             return
         }
         let content = ShelfActivity(items: items, isDropTarget: isDropTarget)
-        sink(.upsert(Activity(id: Self.activityID, kind: .shelf, priority: isDropTarget ? .critical : .low, content: .shelf(content))))
+        let priority = requested ?? (isDropTarget ? .critical : (revealed ? .high : .low))
+        sink(.upsert(Activity(id: Self.activityID, kind: .shelf, priority: priority, content: .shelf(content))))
     }
 
     private func send(_ urls: [URL]) {

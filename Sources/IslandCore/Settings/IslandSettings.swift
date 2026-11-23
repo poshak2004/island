@@ -88,6 +88,10 @@ public final class IslandSettings {
     public var teleprompterVoiceFollow = false { didSet { save() } }
     /// Open the teleprompter (paused) when the camera turns on.
     public var teleprompterStartWithCamera = false { didSet { save() } }
+    /// Your pinned items on the Island's home, in order.
+    public var homePins: [HomeItem] = HomePins.defaults { didSet { save() } }
+    /// Context suggestions (meetings, downloads, habits) above your pins.
+    public var homeSuggestions = true { didSet { save() } }
     public static let teleprompterFontRange: ClosedRange<Double> = 14...34
 
     public static let defaultKinds: Set<ActivityKind> = [.media, .timer, .download, .recording, .battery, .network, .device, .search, .notification, .custom, .call, .teleprompter, .shelf]
@@ -148,6 +152,9 @@ public final class IslandSettings {
         var teleprompterPauseOnHover: Bool?
         var teleprompterVoiceFollow: Bool?
         var teleprompterStartWithCamera: Bool?
+        /// Lossy: one pin from a newer version (or a hand edit) can't wipe every other setting.
+        var homePins: [Lossy<HomeItem>]?
+        var homeSuggestions: Bool?
     }
 
     static let storageKey = "island.settings.v1"
@@ -166,7 +173,8 @@ public final class IslandSettings {
                  kindsRevision: Self.kindsRevision, teleprompterScript: teleprompterScript,
                  teleprompterSpeed: teleprompterSpeed, teleprompterFontSize: teleprompterFontSize,
                  teleprompterHideFromCapture: teleprompterHideFromCapture, teleprompterPauseOnHover: teleprompterPauseOnHover,
-                 teleprompterVoiceFollow: teleprompterVoiceFollow, teleprompterStartWithCamera: teleprompterStartWithCamera)
+                 teleprompterVoiceFollow: teleprompterVoiceFollow, teleprompterStartWithCamera: teleprompterStartWithCamera,
+                 homePins: homePins.map { Lossy(value: $0) }, homeSuggestions: homeSuggestions)
     }
 
     private func apply(_ s: Snapshot) {
@@ -211,6 +219,8 @@ public final class IslandSettings {
         if let v = s.teleprompterPauseOnHover { teleprompterPauseOnHover = v }
         if let v = s.teleprompterVoiceFollow { teleprompterVoiceFollow = v }
         if let v = s.teleprompterStartWithCamera { teleprompterStartWithCamera = v }
+        if let v = s.homePins { homePins = Array(v.compactMap(\.value).prefix(HomePins.maxPins)) }
+        if let v = s.homeSuggestions { homeSuggestions = v }
     }
 
     private func load() {
@@ -226,3 +236,15 @@ public final class IslandSettings {
         defaults.set(data, forKey: Self.storageKey)
     }
 }
+
+/// Decodes to nil instead of failing, so one unreadable element doesn't fail the whole document.
+public struct Lossy<Value: Codable>: Codable {
+    public let value: Value?
+    public init(value: Value?) { self.value = value }
+    public init(from decoder: Decoder) throws { value = try? Value(from: decoder) }
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.singleValueContainer()
+        try c.encode(value)
+    }
+}
+
