@@ -94,23 +94,32 @@ struct MediaExpanded: View {
     var body: some View {
         VStack(spacing: 8) {
             HStack(spacing: 14) {
-                ArtworkView(media: media, size: 56, corner: 13)
-                    .islandMatched("media-artwork", in: ns)
-                    .shadow(color: .black.opacity(0.4), radius: 8, y: 3)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(media.title)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                        .islandMatched("media-title", in: ns)
-                    if !media.artist.isEmpty || !media.album.isEmpty {
-                        Text([media.artist, media.album].filter { !$0.isEmpty }.joined(separator: " — "))
-                            .font(.system(size: 12.5))
-                            .foregroundStyle(IslandPalette.secondaryText)
-                            .lineLimit(1)
+                // Like the Dynamic Island: the mini player is one click away, the full app is the next.
+                Button { openSource() } label: {
+                    HStack(spacing: 14) {
+                        ArtworkView(media: media, size: 56, corner: 13)
+                            .islandMatched("media-artwork", in: ns)
+                            .shadow(color: .black.opacity(0.4), radius: 8, y: 3)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(media.title)
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .lineLimit(1)
+                                .islandMatched("media-title", in: ns)
+                            if !media.artist.isEmpty || !media.album.isEmpty {
+                                Text([media.artist, media.album].filter { !$0.isEmpty }.joined(separator: " — "))
+                                    .font(.system(size: 12.5, weight: .medium))
+                                    .foregroundStyle(IslandPalette.secondaryText)
+                                    .lineLimit(1)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .contentShape(Rectangle())
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .buttonStyle(.plain)
+                .help("Open \(media.sourceName)")
+                .accessibilityLabel("\(media.title), open \(media.sourceName)")
                 if let icon = ImageCache.appIcon(bundleID: media.sourceBundleID) {
                     Image(nsImage: icon).resizable().frame(width: 22, height: 22)
                         .help(media.sourceName)
@@ -133,6 +142,12 @@ struct MediaExpanded: View {
                 }
             }
         }
+    }
+
+    private func openSource() {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: media.sourceBundleID) else { return }
+        send(.launchApplication(url))
+        send(.ui(.collapse))
     }
 }
 

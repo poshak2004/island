@@ -86,6 +86,27 @@ struct SelfTest {
         drain()
         check(island.mode == .idle && env.window.panel.sharingType != .none, "closing teleprompter restores capture")
 
+        env.shelf.start()
+        env.shelf.setDragActive(true)
+        island.expand()
+        drain()
+        check(manager.primary?.kind == .shelf && island.mode == .expanded, "file drag shows shelf drop targets")
+        let dropped = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("island-selftest.txt")
+        FileManager.default.createFile(atPath: dropped.path, contents: Data("x".utf8))
+        env.commands.perform(.shelf(.add([dropped])))
+        drain()
+        if case .shelf(let s) = manager.activity(id: ShelfService.activityID)?.content {
+            check(s.items.map(\.url.lastPathComponent) == ["island-selftest.txt"] && !s.isDropTarget, "drop keeps file on shelf")
+        } else {
+            check(false, "drop keeps file on shelf")
+        }
+        env.commands.perform(.shelf(.clear))
+        drain()
+        check(manager.activity(id: ShelfService.activityID) == nil, "empty shelf leaves the Island")
+        try? FileManager.default.removeItem(at: dropped)
+        manager.removeAll()
+        island.collapse()
+
         print(failures.isEmpty ? "SELF-TEST PASSED" : "SELF-TEST FAILED: \(failures.count)")
         fflush(stdout)
         exit(failures.isEmpty ? 0 : 1)

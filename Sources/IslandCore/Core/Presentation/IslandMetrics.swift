@@ -11,7 +11,7 @@ public enum CompactStyle: Equatable, Sendable {
 
 /// Content-driven expanded heights.
 public enum ExpandedStyle: Equatable, Sendable {
-    case home, media, timer, download, event, device, research, teleprompter
+    case home, media, timer, download, event, device, research, teleprompter, shelf
 }
 
 /// All Island geometry, derived from the notch. Nothing here is hard-coded to a screen.
@@ -75,6 +75,7 @@ public struct IslandMetrics: Equatable, Sendable {
         case .device: 64
         case .research: 280
         case .teleprompter: 150
+        case .shelf: 104
         }
     }
 

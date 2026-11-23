@@ -49,6 +49,12 @@ final class DebugRemote {
                 case "prompter":
                     env.teleprompter.start(text: DebugActivities.sampleScript, title: "Product demo", autoplay: true)
                 case "prompterstop": env.teleprompter.stop()
+                case "shelfdemo":
+                    let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../..").standardizedFileURL
+                    env.commands.perform(.shelf(.add(["README.md", "LICENSE", "Package.swift", "Resources/AppIcon.icns"].map { root.appendingPathComponent($0) })))
+                case "shelfdrag": env.fileDrags.onChange?(true)
+                case "shelfdragend": env.fileDrags.onChange?(false)
+                case "shelfclear": env.commands.perform(.shelf(.clear))
                 case "stress":
                     // Run from a timer (not inside this main-queue block) so deferred main-queue work can execute.
                     Timer.scheduledTimer(withTimeInterval: 0.01, repeats: false) { _ in MainActor.assumeIsolated { StressTest(env: env).run() } }

@@ -15,6 +15,8 @@ final class AppEnvironment {
     let window: IslandWindowController
     let timers: TimerService
     let teleprompter: TeleprompterService
+    let shelf: ShelfService
+    let fileDrags = FileDragWatcher()
     let media: MediaService
     let downloads: DownloadProvider
     let battery: BatteryProvider
@@ -36,6 +38,7 @@ final class AppEnvironment {
         let submit: (ActivityUpdate) -> Void = { [manager] in manager.submit($0) }
         timers = TimerService(bus: bus, sink: submit)
         teleprompter = TeleprompterService(settings: settings, sink: submit)
+        shelf = ShelfService(sink: submit)
         media = MediaService(bus: bus, sink: submit)
         downloads = DownloadProvider(bus: bus, sink: submit)
         battery = BatteryProvider(bus: bus, sink: submit)
@@ -58,9 +61,11 @@ final class AppEnvironment {
         commands.media = { [weak self] c, source in self?.media.perform(c, source: source) }
         commands.download = { [weak self] in self?.downloads.handle($0) }
         commands.teleprompter = { [weak self] in self?.teleprompter.handle($0) }
+        commands.shelf = { [weak self] in self?.handleShelf($0) }
         commands.ui = { [weak self] in self?.handleUI($0) }
 
         wireTeleprompter()
+        wireShelf()
 
         display.selection = settings.display
         display.onChange = { [weak self] g in self?.geometryChanged(g) }
@@ -104,6 +109,7 @@ final class AppEnvironment {
         toggle("recording", kinds.contains(.recording), start: { recording.start() }, stop: { recording.stop() })
         toggle("calendar", kinds.contains(.calendar), start: { calendar.start() }, stop: { calendar.stop() })
         toggle("clipboard", kinds.contains(.clipboard), start: { clipboard.start() }, stop: { clipboard.stop() })
+        toggle("shelf", kinds.contains(.shelf), start: { shelf.start(); fileDrags.start() }, stop: { fileDrags.stop(); shelf.stop() })
     }
 
     private func toggle(_ key: String, _ on: Bool, start: () -> Void, stop: () -> Void) {
@@ -230,6 +236,51 @@ extension AppEnvironment {
 
     fileprivate func updateCaptureVisibility() {
         window.setHiddenFromCapture(teleprompter.isActive && settings.teleprompterHideFromCapture)
+    }
+}
+
+// MARK: File shelf
+
+extension AppEnvironment {
+    /// How far around the open Island a file drag still counts as "heading for the notch".
+    static let shelfDragMargin: CGFloat = 60
+    static let shelfConfirmSeconds: TimeInterval = 2.5
+
+    fileprivate func wireShelf() {
+        fileDrags.isNearIsland = { [weak self] point in
+            guard let self, let g = self.island.geometry else { return false }
+            let m = self.island.metrics
+            let width = m.expandedWidth + 2 * Self.shelfDragMargin
+            let height = m.expandedHeight(.shelf) + Self.shelfDragMargin
+            return NSRect(x: g.anchor.x - width / 2, y: g.anchor.y - height, width: width, height: height).contains(point)
+        }
+        fileDrags.onChange = { [weak self] active in
+            guard let self else { return }
+            self.shelf.setDragActive(active)
+            if active { self.island.expand() } else if !self.island.mouseInside { self.island.collapse() }
+        }
+        bus.subscribe { [weak self] event in
+            if case .activityEnded(let id, .shelf) = event, id == ShelfService.activityID { self?.shelf.activityEnded() }
+        }
+    }
+
+    fileprivate func handleShelf(_ command: ShelfCommand) {
+        switch command {
+        case .add, .airDrop: fileDrags.dropCompleted()
+        case .remove, .clear: break
+        }
+        shelf.handle(command)
+        switch command {
+        case .airDrop:
+            island.collapse()
+        case .add:
+            // Show what landed for a moment, then step back to whatever was playing.
+            island.collapse()
+            manager.select(id: ShelfService.activityID)
+            island.presentTransient(seconds: Self.shelfConfirmSeconds)
+        case .remove, .clear:
+            break
+        }
     }
 }
 

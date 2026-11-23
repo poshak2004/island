@@ -144,6 +144,7 @@ private struct ActivitySettings: View {
         (.calendar, "Upcoming events (asks for Calendar access)"), (.clipboard, "Local “Copied” confirmations"),
         (.notification, "Short system events"),
         (.teleprompter, "Scrolling script under the camera"),
+        (.shelf, "Drag files to the notch to keep or AirDrop them"),
     ]
 
     var body: some View {

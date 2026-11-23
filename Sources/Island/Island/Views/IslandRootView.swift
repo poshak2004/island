@@ -178,6 +178,7 @@ struct ExpandedLayout: View {
         switch a.content {
         case .media(let m): return m.sourceName
         case .teleprompter(let t): return t.script.title.isEmpty ? "Teleprompter" : t.script.title
+        case .shelf: return "File Shelf"
         default: return ""
         }
     }
