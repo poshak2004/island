@@ -10,22 +10,24 @@ TARGET="$ARCH-apple-macos$MIN_MACOS"
 if [[ "$CONFIG" == "release" ]]; then OPT=(-O -whole-module-optimization); else OPT=(-Onone -g -enable-testing -DDEBUG); fi
 COMMON=(-target "$TARGET" -sdk "$SDKROOT" -swift-version 5 "${OPT[@]}")
 
-CORE_SRC=$(find "$ROOT/Sources/IslandCore" -name '*.swift' | sort)
-APP_SRC=$(find "$ROOT/Sources/Island" -name '*.swift' | sort)
+# Arrays (not word-split strings) so paths containing spaces work.
+sources() { find "$1" -name '*.swift' -print0 | sort -z; }
+CORE_SRC=(); while IFS= read -r -d '' f; do CORE_SRC+=("$f"); done < <(sources "$ROOT/Sources/IslandCore")
+APP_SRC=(); while IFS= read -r -d '' f; do APP_SRC+=("$f"); done < <(sources "$ROOT/Sources/Island")
 
 echo "▸ IslandCore ($CONFIG, $ARCH)"
 swiftc "${COMMON[@]}" -parse-as-library -module-name IslandCore -emit-module -emit-module-path "$OUT/IslandCore.swiftmodule" \
-  -emit-library -static -o "$OUT/libIslandCore.a" $CORE_SRC
+  -emit-library -static -o "$OUT/libIslandCore.a" "${CORE_SRC[@]}"
 
 echo "▸ Island"
 swiftc "${COMMON[@]}" -module-name Island -I "$OUT" -L "$OUT" -lIslandCore \
   -framework AppKit -framework SwiftUI -framework IOKit -framework CoreAudio -framework CoreMediaIO \
   -framework EventKit -framework ServiceManagement -framework Carbon -framework Network \
-  -o "$OUT/Island" $APP_SRC
+  -o "$OUT/Island" "${APP_SRC[@]}"
 
 if [[ "$WITH_TESTS" == "--tests" ]]; then
   echo "▸ IslandCoreTests"
-  TEST_SRC=$(find "$ROOT/Tests/IslandCoreTests" -name '*.swift' | sort)
-  swiftc "${COMMON[@]}" -module-name IslandCoreTests -I "$OUT" -L "$OUT" -lIslandCore -o "$OUT/IslandCoreTests" $TEST_SRC
+  TEST_SRC=(); while IFS= read -r -d '' f; do TEST_SRC+=("$f"); done < <(sources "$ROOT/Tests/IslandCoreTests")
+  swiftc "${COMMON[@]}" -module-name IslandCoreTests -I "$OUT" -L "$OUT" -lIslandCore -o "$OUT/IslandCoreTests" "${TEST_SRC[@]}"
 fi
 echo "✓ $OUT"
