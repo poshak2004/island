@@ -30,6 +30,8 @@ final class IslandViewModel {
     @ObservationIgnored private var animationEndWork: DispatchWorkItem?
     @ObservationIgnored private(set) var mouseInside = false
     @ObservationIgnored var onModeChange: ((IslandMode) -> Void)?
+    /// Pointer entered/left the Island (after debouncing). Features use it, e.g. pause-on-hover.
+    @ObservationIgnored var onPointerChange: ((Bool) -> Void)?
     /// Recent input → mode transitions (diagnostics; shown in the debug dump).
     @ObservationIgnored private(set) var trace: [String] = []
     private func note(_ s: String) {
@@ -83,7 +85,8 @@ final class IslandViewModel {
         let ear = m.topEarRadius(mode: mode)
         let open = mode == .expanded || mode == .search
         let compactGlass = mode == .compact && settings.compactGlass
-        let glass = reduceTransparency ? 0 : (open || compactGlass ? settings.glassIntensity : 0)
+        // Reading surfaces (teleprompter) stay solid black: busy content behind glass hurts legibility.
+        let glass = reduceTransparency || (open && primaryPinsExpansion) ? 0 : (open || compactGlass ? settings.glassIntensity : 0)
         return IslandSurfaceView.Geometry(
             width: size.width + 2 * ear, height: max(size.height, 0.5), earRadius: ear,
             bottomRadius: m.bottomCornerRadius(mode: mode, height: size.height), offsetX: horizontalOffset,
@@ -113,6 +116,7 @@ final class IslandViewModel {
         guard inside != mouseInside else { return }
         mouseInside = inside
         note("pointer \(inside ? "in" : "out")")
+        onPointerChange?(inside)
         hoverWork?.cancel()
         if inside {
             collapseWork?.cancel()
@@ -150,6 +154,7 @@ final class IslandViewModel {
     func apply(_ input: IslandInput) {
         var next = presentation
         next.hoverExpansionEnabled = settings.hoverExpansion
+        next.pinsExpansion = primaryPinsExpansion
         next.handle(input)
         guard next != presentation else { return }
         let modeChanged = next.mode != presentation.mode
@@ -195,7 +200,14 @@ final class IslandViewModel {
     }
 
     /// Synchronous, so the presentation can never drift from the activity state.
+    /// Reading surfaces stay open while you work (see `IslandPresentation.pinsExpansion`).
+    var primaryPinsExpansion: Bool {
+        if case .teleprompter(let t) = primary?.content { return t.state != .finished }
+        return false
+    }
+
     private func activitiesChanged() {
+        presentation.pinsExpansion = primaryPinsExpansion
         let has = manager.primary != nil
         if has != presentation.hasActivity { apply(.activityAvailabilityChanged(hasActivity: has)) }
     }

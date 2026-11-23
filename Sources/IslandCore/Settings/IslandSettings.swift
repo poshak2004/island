@@ -46,7 +46,8 @@ public final class IslandSettings {
     public var islandScale: Double = 1.0 { didSet { save() } }
     public var cornerRadius: Double = 32 { didSet { save() } }
     /// Compact Island background: see-through glass (default) or solid black like the hardware notch.
-    public var compactGlass = true { didSet { save() } }
+    /// Off by default: Apple's Dynamic Island is opaque black so it reads as part of the hardware.
+    public var compactGlass = false { didSet { save() } }
     /// Show the song title next to the artwork in the compact Island (wider; covers more menu bar).
     public var compactShowsTitle = false { didSet { save() } }
     // Behavior
@@ -78,7 +79,21 @@ public final class IslandSettings {
     public var debugMode = false { didSet { save() } }
     public var performanceOverlay = false { didSet { save() } }
 
-    public static let defaultKinds: Set<ActivityKind> = [.media, .timer, .download, .recording, .battery, .network, .device, .search, .notification, .custom, .call]
+    public var teleprompterScript = "" { didSet { save() } }
+    public var teleprompterSpeed: Double = 140 { didSet { save() } }
+    public var teleprompterFontSize: Double = 22 { didSet { save() } }
+    /// Keep the Island out of screen shares and recordings while the teleprompter is showing.
+    public var teleprompterHideFromCapture = true { didSet { save() } }
+    public var teleprompterPauseOnHover = true { didSet { save() } }
+    public var teleprompterVoiceFollow = false { didSet { save() } }
+    /// Open the teleprompter (paused) when the camera turns on.
+    public var teleprompterStartWithCamera = false { didSet { save() } }
+    public static let teleprompterFontRange: ClosedRange<Double> = 14...34
+
+    public static let defaultKinds: Set<ActivityKind> = [.media, .timer, .download, .recording, .battery, .network, .device, .search, .notification, .custom, .call, .teleprompter, .shelf]
+    /// Bump when new default-on kinds are added, so existing installs get them once.
+    static let kindsRevision = 2
+    static let kindsAddedInRevision2: Set<ActivityKind> = [.teleprompter, .shelf]
 
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -125,6 +140,14 @@ public final class IslandSettings {
         var forceHighContrast: Bool?
         var debugMode: Bool?
         var performanceOverlay: Bool?
+        var kindsRevision: Int?
+        var teleprompterScript: String?
+        var teleprompterSpeed: Double?
+        var teleprompterFontSize: Double?
+        var teleprompterHideFromCapture: Bool?
+        var teleprompterPauseOnHover: Bool?
+        var teleprompterVoiceFollow: Bool?
+        var teleprompterStartWithCamera: Bool?
     }
 
     static let storageKey = "island.settings.v1"
@@ -139,7 +162,11 @@ public final class IslandSettings {
                  webSearchEnabled: webSearchEnabled, webSearchProviders: webSearchProviders.sorted(),
                  fileSearchEnabled: fileSearchEnabled, aiProvider: aiProvider, aiModel: aiModel,
                  forceReduceMotion: forceReduceMotion, forceReduceTransparency: forceReduceTransparency,
-                 forceHighContrast: forceHighContrast, debugMode: debugMode, performanceOverlay: performanceOverlay)
+                 forceHighContrast: forceHighContrast, debugMode: debugMode, performanceOverlay: performanceOverlay,
+                 kindsRevision: Self.kindsRevision, teleprompterScript: teleprompterScript,
+                 teleprompterSpeed: teleprompterSpeed, teleprompterFontSize: teleprompterFontSize,
+                 teleprompterHideFromCapture: teleprompterHideFromCapture, teleprompterPauseOnHover: teleprompterPauseOnHover,
+                 teleprompterVoiceFollow: teleprompterVoiceFollow, teleprompterStartWithCamera: teleprompterStartWithCamera)
     }
 
     private func apply(_ s: Snapshot) {
@@ -159,7 +186,11 @@ public final class IslandSettings {
         if let v = s.autoCollapseDelay { autoCollapseDelay = min(30, max(1, v)) }
         if let v = s.animationSpeed { animationSpeed = min(2, max(0.5, v)) }
         if let v = s.hapticFeedback { hapticFeedback = v }
-        if let v = s.enabledKinds { enabledKinds = Set(v) }
+        if let v = s.enabledKinds {
+            var kinds = Set(v)
+            if (s.kindsRevision ?? 1) < 2 { kinds.formUnion(Self.kindsAddedInRevision2) }
+            enabledKinds = kinds
+        }
         if let v = s.browserMediaEnabled { browserMediaEnabled = v }
         if let v = s.searchEnabled { searchEnabled = v }
         if let v = s.searchShortcut { searchShortcut = v }
@@ -173,6 +204,13 @@ public final class IslandSettings {
         if let v = s.forceHighContrast { forceHighContrast = v }
         if let v = s.debugMode { debugMode = v }
         if let v = s.performanceOverlay { performanceOverlay = v }
+        if let v = s.teleprompterScript { teleprompterScript = String(v.prefix(TeleprompterScript.maxCharacters)) }
+        if let v = s.teleprompterSpeed { teleprompterSpeed = TeleprompterActivity.clampSpeed(v) }
+        if let v = s.teleprompterFontSize { teleprompterFontSize = min(Self.teleprompterFontRange.upperBound, max(Self.teleprompterFontRange.lowerBound, v)) }
+        if let v = s.teleprompterHideFromCapture { teleprompterHideFromCapture = v }
+        if let v = s.teleprompterPauseOnHover { teleprompterPauseOnHover = v }
+        if let v = s.teleprompterVoiceFollow { teleprompterVoiceFollow = v }
+        if let v = s.teleprompterStartWithCamera { teleprompterStartWithCamera = v }
     }
 
     private func load() {

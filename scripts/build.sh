@@ -22,7 +22,7 @@ swiftc "${COMMON[@]}" -parse-as-library -module-name IslandCore -emit-module -em
 echo "▸ Island"
 swiftc "${COMMON[@]}" -module-name Island -I "$OUT" -L "$OUT" -lIslandCore \
   -framework AppKit -framework SwiftUI -framework IOKit -framework CoreAudio -framework CoreMediaIO \
-  -framework EventKit -framework ServiceManagement -framework Carbon -framework Network \
+  -framework EventKit -framework ServiceManagement -framework Carbon -framework Network -framework Speech -framework AVFoundation \
   -o "$OUT/Island" "${APP_SRC[@]}"
 
 if [[ "$WITH_TESTS" == "--tests" ]]; then

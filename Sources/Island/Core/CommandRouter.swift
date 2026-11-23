@@ -8,6 +8,7 @@ final class CommandRouter {
     var media: ((MediaCommand, String?) -> Void)?
     var timer: ((TimerCommand) -> Void)?
     var download: ((DownloadCommand) -> Void)?
+    var teleprompter: ((TeleprompterCommand) -> Void)?
     var ui: ((IslandUICommand) -> Void)?
     var action: ((AppAction, ActionOrigin) -> Void)?
     var openSettings: (() -> Void)?
@@ -23,6 +24,7 @@ final class CommandRouter {
         case .media(let c, let source): media?(c, source)
         case .timer(let c): timer?(c)
         case .download(let c): download?(c)
+        case .teleprompter(let c): teleprompter?(c)
         case .ui(let c): ui?(c)
         case .action(let a): action?(a, origin)
         case .openSettings: openSettings?()

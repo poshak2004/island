@@ -14,6 +14,7 @@ final class AppEnvironment {
     let search = SearchViewModel()
     let window: IslandWindowController
     let timers: TimerService
+    let teleprompter: TeleprompterService
     let media: MediaService
     let downloads: DownloadProvider
     let battery: BatteryProvider
@@ -34,6 +35,7 @@ final class AppEnvironment {
         window = IslandWindowController(model: island, search: search)
         let submit: (ActivityUpdate) -> Void = { [manager] in manager.submit($0) }
         timers = TimerService(bus: bus, sink: submit)
+        teleprompter = TeleprompterService(settings: settings, sink: submit)
         media = MediaService(bus: bus, sink: submit)
         downloads = DownloadProvider(bus: bus, sink: submit)
         battery = BatteryProvider(bus: bus, sink: submit)
@@ -55,7 +57,10 @@ final class AppEnvironment {
         commands.timer = { [weak self] in self?.timers.handle($0) }
         commands.media = { [weak self] c, source in self?.media.perform(c, source: source) }
         commands.download = { [weak self] in self?.downloads.handle($0) }
+        commands.teleprompter = { [weak self] in self?.teleprompter.handle($0) }
         commands.ui = { [weak self] in self?.handleUI($0) }
+
+        wireTeleprompter()
 
         display.selection = settings.display
         display.onChange = { [weak self] g in self?.geometryChanged(g) }
@@ -140,6 +145,7 @@ final class AppEnvironment {
         if settings.islandEnabled { window.show() } else { window.hide() }
         syncProviders()
         if providersRunning { features.configure() }
+        updateCaptureVisibility()
     }
 
     private func observeSettings() {
@@ -159,6 +165,7 @@ final class AppEnvironment {
             _ = settings.aiProvider
             _ = settings.aiModel
             _ = settings.performanceOverlay
+            _ = settings.teleprompterHideFromCapture
         } onChange: { [weak self] in
             DispatchQueue.main.async {
                 self?.applySettings()
@@ -167,3 +174,62 @@ final class AppEnvironment {
         }
     }
 }
+
+// MARK: Teleprompter
+
+extension AppEnvironment {
+    fileprivate func wireTeleprompter() {
+        teleprompter.lineCharacters = { [weak self] in
+            guard let self else { return 40 }
+            let width = self.island.metrics.expandedWidth - 44
+            return TeleprompterStyle.lineCharacters(width: width, fontSize: CGFloat(self.settings.teleprompterFontSize))
+        }
+        teleprompter.onSessionChange = { [weak self] active in
+            guard let self else { return }
+            self.updateCaptureVisibility()
+            if active { self.island.expand() } else { self.island.collapse() }
+        }
+        island.onPointerChange = { [weak self] inside in
+            guard let self, self.teleprompter.isActive else { return }
+            self.teleprompter.handle(.pointerInside(inside))
+        }
+        bus.subscribe { [weak self] event in
+            guard let self else { return }
+            switch event {
+            case .activityEnded(let id, .teleprompter) where id == TeleprompterService.activityID:
+                self.teleprompter.activityEnded()
+            case .activityStarted(_, .recording):
+                self.cameraMaybeStarted()
+            default: break
+            }
+        }
+    }
+
+    /// Search, automation and the menu bar start the saved script; with none saved, the clipboard.
+    func startTeleprompterFromSettings() {
+        let saved = settings.teleprompterScript.trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = saved.isEmpty ? (NSPasteboard.general.string(forType: .string) ?? "") : saved
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            commands.openSettings?()
+            return
+        }
+        teleprompter.start(text: text, title: saved.isEmpty ? "Clipboard" : "Teleprompter", autoplay: true)
+    }
+
+    /// "Show when the camera turns on": opens the saved script paused, ready for you to press play.
+    private func cameraMaybeStarted() {
+        guard settings.teleprompterStartWithCamera, settings.enabledKinds.contains(.teleprompter), !teleprompter.isActive else { return }
+        let cameraOn = manager.ordered.contains { a in
+            if case .recording(let r) = a.content { return r.camera }
+            return false
+        }
+        let script = settings.teleprompterScript
+        guard cameraOn, !script.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        teleprompter.start(text: script, title: "Teleprompter", autoplay: false)
+    }
+
+    fileprivate func updateCaptureVisibility() {
+        window.setHiddenFromCapture(teleprompter.isActive && settings.teleprompterHideFromCapture)
+    }
+}
+

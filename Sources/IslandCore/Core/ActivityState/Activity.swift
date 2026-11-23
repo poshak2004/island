@@ -10,6 +10,7 @@ public enum ActivityPriority: Int, Comparable, CaseIterable, Codable, Sendable, 
 
 public enum ActivityKind: String, CaseIterable, Codable, Sendable, Hashable {
     case media, timer, download, recording, call, battery, network, device, calendar, clipboard, search, notification, custom
+    case teleprompter, shelf
 
     public var displayName: String {
         switch self {
@@ -26,6 +27,8 @@ public enum ActivityKind: String, CaseIterable, Codable, Sendable, Hashable {
         case .search: "Search"
         case .notification: "System Events"
         case .custom: "Custom"
+        case .teleprompter: "Teleprompter"
+        case .shelf: "File Shelf"
         }
     }
 }

@@ -11,6 +11,7 @@ public enum ActivityContent: Equatable, Sendable {
     case calendar(CalendarActivity)
     case clipboard(ClipboardActivity)
     case event(SystemEventActivity)
+    case teleprompter(TeleprompterActivity)
 }
 
 // MARK: - Media

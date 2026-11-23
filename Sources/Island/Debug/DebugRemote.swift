@@ -46,6 +46,9 @@ final class DebugRemote {
                 case "settings": env.commands.perform(.openSettings)
                 case "debugpanel": env.showDebugPanel()
                 case "quicktimer": env.timers.handle(.start(duration: 3, label: "Quick"))
+                case "prompter":
+                    env.teleprompter.start(text: DebugActivities.sampleScript, title: "Product demo", autoplay: true)
+                case "prompterstop": env.teleprompter.stop()
                 case "stress":
                     // Run from a timer (not inside this main-queue block) so deferred main-queue work can execute.
                     Timer.scheduledTimer(withTimeInterval: 0.01, repeats: false) { _ in MainActor.assumeIsolated { StressTest(env: env).run() } }
@@ -66,6 +69,7 @@ final class DebugRemote {
                         case "reduceTransparency": env.settings.forceReduceTransparency = on
                         case "highContrast": env.settings.forceHighContrast = on
                         case "searchEnabled": env.settings.searchEnabled = on
+                        case "prompterHide": env.settings.teleprompterHideFromCapture = on
                         default: break
                         }
                     }

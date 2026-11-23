@@ -50,6 +50,12 @@ final class IslandWindowController {
         refreshMouseState()
     }
 
+    /// Keep the Island out of screen sharing and recordings (teleprompter). Apps that capture with
+    /// ScreenCaptureKit and honour window sharing settings won't see it; not every app does.
+    func setHiddenFromCapture(_ hidden: Bool) {
+        panel.sharingType = hidden ? .none : .readOnly
+    }
+
     func hide() {
         guard isVisible else { return }
         isVisible = false

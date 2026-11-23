@@ -36,6 +36,7 @@ public enum ActivityValidator {
         case .calendar: kind == .calendar
         case .clipboard: kind == .clipboard
         case .event: true
+        case .teleprompter: kind == .teleprompter
         }
     }
 
@@ -85,6 +86,7 @@ public enum ActivityValidator {
         case .clipboard(var c):
             c.preview = clean(c.preview)
             return .clipboard(c)
+        case .teleprompter: return content
         case .event(var e):
             e.title = clean(e.title)
             e.subtitle = e.subtitle.map(clean)

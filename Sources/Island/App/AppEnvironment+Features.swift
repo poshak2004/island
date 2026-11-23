@@ -88,6 +88,7 @@ final class FeatureHub {
         case .openApplication(let name):
             if let url = apps.find(name) { env.commands.perform(.launchApplication(url), origin: origin) }
         case .openURL(let url): env.commands.perform(.openURL(url), origin: origin)
+        case .startTeleprompter: env.startTeleprompterFromSettings()
         }
     }
 
