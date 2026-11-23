@@ -17,7 +17,10 @@ final class VoiceFollower {
     /// Bumped for every recognition task; callbacks from older tasks are ignored.
     private var generation = 0
 
-    private let engine = AVAudioEngine()
+    /// Created on first use only. Touching `inputNode` binds the microphone and can block the main
+    /// thread in CoreAudio, so nothing here touches the engine unless listening really started.
+    private var engine: AVAudioEngine?
+    private var tapInstalled = false
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
     private var restartWork: DispatchWorkItem?
@@ -61,6 +64,7 @@ final class VoiceFollower {
 
     func stop() {
         wanted = false
+        guard isRunning || isStarting || tapInstalled || task != nil else { return } // never started: nothing to touch
         restartWork?.cancel()
         let wasRunning = isRunning
         isRunning = false
@@ -71,6 +75,8 @@ final class VoiceFollower {
     // MARK: Internals
 
     private func begin(with recognizer: SFSpeechRecognizer) throws {
+        let engine = self.engine ?? AVAudioEngine()
+        self.engine = engine
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
         // No device, or one mid-switch (Bluetooth headsets): installing a tap with this format raises.
@@ -83,8 +89,9 @@ final class VoiceFollower {
         self.request = request
         generation += 1
 
-        input.removeTap(onBus: 0)
+        if tapInstalled { input.removeTap(onBus: 0) }
         input.installTap(onBus: 0, bufferSize: 1024, format: format, block: Self.tapBlock(for: request))
+        tapInstalled = true
         engine.prepare()
         try engine.start()
         task = recognizer.recognitionTask(with: request, resultHandler: Self.resultHandler(generation: generation, owner: self))
@@ -132,8 +139,12 @@ final class VoiceFollower {
         task = nil
         request?.endAudio()
         request = nil
+        guard let engine else { return }
         if engine.isRunning { engine.stop() }
-        engine.inputNode.removeTap(onBus: 0)
+        if tapInstalled {
+            engine.inputNode.removeTap(onBus: 0)
+            tapInstalled = false
+        }
     }
 
     private static func recognizer() -> SFSpeechRecognizer? {

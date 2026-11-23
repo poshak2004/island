@@ -99,6 +99,13 @@ extension DebugRemote {
         lines.append("geometry=\(String(describing: env.island.geometry?.notchRect)) notch=\(env.island.geometry?.hasNotch ?? false)")
         lines.append("polling=\(env.window.isPollingPointer) panelVisible=\(env.window.panel.isVisible) escapeArmed=\(env.window.escapeArmed) key=\(env.window.panel.isKeyWindow) monitors=\(env.window.monitorCount) visible=\(env.window.isVisible) mouseEvents=\(env.window.mouseEventCount) last=\(env.window.lastMouse) inside=\(env.island.mouseInside) hit=\(env.window.interactiveRect)")
         lines.append("airpods=\(env.airPods.phase.rawValue) revealed=\(env.airPods.isRevealed)")
+        if let t = env.teleprompter.current {
+            lines.append(String(format: "prompter=%@ pos=%.2f hoverPaused=%@ voice=%@ listening=%@ sharing=%d",
+                                t.state.rawValue, t.position(at: Date()), "\(t.hoverPaused)", "\(t.voiceFollow)", "\(t.listening)",
+                                env.window.panel.sharingType.rawValue))
+        } else {
+            lines.append("prompter=none sharing=\(env.window.panel.sharingType.rawValue)")
+        }
         lines.append("hotkey=\(env.features.hotKey?.registered?.display ?? "none") err=\(env.features.hotKey?.lastError ?? 0)")
         lines.append("window=\(env.window.panel.frame) ignoresMouse=\(env.window.panel.ignoresMouseEvents)")
         for e in env.manager.log.suffix(15) { lines.append("log: \(e.message)") }
