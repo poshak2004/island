@@ -10,7 +10,7 @@
 - Search (apps, files, actions, web), AI research with citations, automation engine
 - CI and releases
 
-**Done (v0.2):**
+**Done (v0.3):**
 - Teleprompter: timed or voice-follow scrolling, pause on hover, hidden from capture, opens with the camera (optional)
 - File shelf with AirDrop drop target
 - Click the media artwork or title to open its app
