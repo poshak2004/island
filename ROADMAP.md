@@ -16,7 +16,7 @@
 - Click the media artwork or title to open its app
 - Compact Island is solid black by default, like Apple's Dynamic Island
 
-**Done (v0.4):**
+**Also in v0.3:**
 - Customizable home: search bar, context suggestions, pinned apps / Shortcuts / websites / files / Island features, Pin to Home from search, house tab while activities are live, Settings › Home
 
 **Next**
