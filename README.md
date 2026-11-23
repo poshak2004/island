@@ -9,6 +9,8 @@ Island is one continuous surface that lives in your MacBook's notch. Live activi
 - **Universal media**: Apple Music, Spotify, VLC, and (opt-in) Safari, Chrome, Brave, and Edge media.
 - **Liquid Glass** on macOS 26+, with full support for Reduce Motion, Reduce Transparency, and Increase Contrast.
 - **Search** (⌥Space): apps, files, actions, web results, and optional AI answers with citations, all inside the island.
+- **Teleprompter**: your script scrolls right under the camera, so you read while looking at the lens. Set a speed or let it follow your voice (on-device). Hidden from screen sharing.
+- **File shelf**: drag files to the notch to park them, drag them back out later, or drop them on AirDrop.
 - Public Apple APIs only. No private frameworks, injection, or fake data.
 
 ## Install
@@ -31,6 +33,8 @@ Requires macOS 14 Sonoma or later. Works on notched MacBooks, Macs without a not
 | Network | Offline / Online | NWPathMonitor |
 | Calendar | next event | EventKit (opt-in) |
 | Clipboard | Copied … | local only (opt-in) |
+| Teleprompter | ≡ ◔ progress | your script (Settings › Teleprompter, search `teleprompter`, or the menu bar) |
+| File shelf | 🗂 3 | files you drag to the notch |
 
 Priority is deterministic: `critical > high > normal > low`. An activity of equal priority never steals focus from the current one. When an interruption (like a finished timer) is dismissed, the previous activity returns.
 

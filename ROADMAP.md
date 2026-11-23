@@ -10,9 +10,16 @@
 - Search (apps, files, actions, web), AI research with citations, automation engine
 - CI and releases
 
+**Done (v0.2):**
+- Teleprompter: timed or voice-follow scrolling, pause on hover, hidden from capture, opens with the camera (optional)
+- File shelf with AirDrop drop target
+- Click the media artwork or title to open its app
+- Compact Island is solid black by default, like Apple's Dynamic Island
+
 **Next**
 - Automation rule editor UI (the engine and storage already exist)
-- Drag and drop files onto the island (AirDrop/shelf)
+- Keyboard control of the expanded Island (Tab through controls; Space to play/pause the teleprompter)
+- Drop a .txt or .md file on the Island to load it into the teleprompter
 - Per-app media allow list; more browsers
 - Focus-mode-aware quiet hours
 - Localization
