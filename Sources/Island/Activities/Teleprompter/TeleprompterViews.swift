@@ -27,7 +27,13 @@ enum TeleprompterStyle {
 }
 
 private struct TeleprompterFontKey: EnvironmentKey { static let defaultValue: CGFloat = 22 }
+private struct TeleprompterReadyKey: EnvironmentKey { static let defaultValue = false }
 extension EnvironmentValues {
+    /// A script is saved and no session is running: offer to start one (e.g. when the camera turns on).
+    var teleprompterReady: Bool {
+        get { self[TeleprompterReadyKey.self] }
+        set { self[TeleprompterReadyKey.self] = newValue }
+    }
     var teleprompterFontSize: CGFloat {
         get { self[TeleprompterFontKey.self] }
         set { self[TeleprompterFontKey.self] = newValue }

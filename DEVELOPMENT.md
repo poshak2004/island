@@ -15,6 +15,7 @@ The build uses `swiftc` directly (see `scripts/env.sh`). `env.sh` picks an SDK t
 
 **QA.**
 - `scripts/qa/e2e.sh`: an end-to-end suite of 38 checks using real mouse and keyboard events. It covers hover, Escape, ⌥Space search typing and Return, click-outside, bubbles, buttons, and the settings toggles. It needs Accessibility permission for your terminal, and it moves your pointer, so don't touch the Mac while it runs.
+- When the notched display isn't the main display, run the QA scripts with `ISLAND_QA_ORIGIN="x,y"` (that display's top-left in global coordinates, e.g. `601,1440` for a MacBook placed below a monitor); script coordinates are relative to it.
 - `scripts/qa/prompter-e2e.sh`: 13 real-input teleprompter checks (open, scroll, hover pause, Escape, reopen, close, screen-capture hiding and restoring).
 - `scripts/island-debug.sh stress:<seed>`: 400 randomized operations against the real controller with invariant checks. Results go to `$TMPDIR/island-stress.txt`.
 - `scripts/island-debug.sh frames:<seconds>`: records frame pacing during animations to `$TMPDIR/island-frames.txt`.

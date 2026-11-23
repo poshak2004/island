@@ -17,6 +17,8 @@ final class SearchViewModel {
     var query = "" { didSet { if query != oldValue { scheduleSearch() } } }
     private(set) var sections: [Section] = []
     private(set) var selectedID: String?
+    /// You moved the selection (arrows or pointer); until then it follows the top result as results stream in.
+    @ObservationIgnored private var userChoseSelection = false
     private(set) var isSearching = false
     private(set) var focusToken = 0
     private(set) var answer: ResearchState = .idle
@@ -25,6 +27,10 @@ final class SearchViewModel {
     @ObservationIgnored var commands: CommandRouter?
     @ObservationIgnored var research: ((String) async throws -> ResearchAnswer)?
     @ObservationIgnored var onHeightChange: ((CGFloat) -> Void)?
+    /// A result was run (feeds Home's habits).
+    @ObservationIgnored var onExecuted: ((SearchResult) -> Void)?
+    /// Pin a result to Home; nil when Home isn't available.
+    @ObservationIgnored var onPin: ((HomeItem) -> Void)?
     @ObservationIgnored var compactHeight: CGFloat = 32
     @ObservationIgnored private var searchTask: Task<Void, Never>?
     @ObservationIgnored private var researchTask: Task<Void, Never>?
@@ -54,7 +60,10 @@ final class SearchViewModel {
         updateHeight()
     }
 
-    func select(_ id: String) { selectedID = id }
+    func select(_ id: String) {
+        selectedID = id
+        userChoseSelection = true
+    }
 
     func execute(_ result: SearchResult? = nil) {
         guard let r = result ?? selected else { return }
@@ -64,6 +73,7 @@ final class SearchViewModel {
         }
         guard let command = r.command else { return }
         commands?.perform(command)
+        onExecuted?(r)
         if case .ui = command { return }
         commands?.perform(.ui(.collapse))
     }
@@ -83,11 +93,13 @@ final class SearchViewModel {
         guard !list.isEmpty else { return }
         let idx = list.firstIndex { $0.id == selected?.id } ?? 0
         selectedID = list[(idx + delta + list.count) % list.count].id
+        userChoseSelection = true
     }
 
     // MARK: Search
 
     private func scheduleSearch() {
+        userChoseSelection = false
         searchTask?.cancel()
         researchTask?.cancel()
         answer = .idle
@@ -127,7 +139,9 @@ final class SearchViewModel {
             .filter { !$0.results.isEmpty || $0.error != nil }
             .sorted { $0.category.order < $1.category.order }
         sections = ordered
-        if selectedID == nil || !flatResults.contains(where: { $0.id == selectedID }) { selectedID = flatResults.first?.id }
+        if !userChoseSelection || selectedID == nil || !flatResults.contains(where: { $0.id == selectedID }) {
+            selectedID = flatResults.first?.id
+        }
         updateHeight()
     }
 

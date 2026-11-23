@@ -11,6 +11,7 @@ func runAll() async -> Int32 {
     registerAirPodsTests()
     registerTeleprompterTests()
     registerShelfTests()
+    registerHomeTests()
     return await TestKit.shared.run(filter: CommandLine.arguments.dropFirst().first)
 }
 

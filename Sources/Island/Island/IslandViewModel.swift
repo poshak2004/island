@@ -14,6 +14,10 @@ final class IslandViewModel {
     @ObservationIgnored var commands: CommandRouter
     /// AirPods connection animation (separate component; the Island only reads its reveal state).
     @ObservationIgnored var airPods: AirPodsConnectionAnimator?
+    /// The home surface (pins, suggestions). Set by the composition root.
+    @ObservationIgnored var home: HomeModel?
+    /// Home is open on top of live activities (via the house tab), until the Island closes.
+    private(set) var showsHome = false
 
     private(set) var presentation = IslandPresentation()
     private(set) var geometry: NotchGeometry?
@@ -67,7 +71,13 @@ final class IslandViewModel {
     /// Secondary activities shown inside the compact Island.
     var minimals: [Activity] { mode == .compact ? Array(secondaries.prefix(IslandMetrics.maxMinimals)) : [] }
     var horizontalOffset: CGFloat { metrics.horizontalOffset(mode: mode, compact: compactStyle, minimals: minimals.count) }
-    var expandedStyle: ExpandedStyle { ActivityPresentation.expandedStyle(for: primary) }
+    var isShowingHome: Bool { primary == nil || showsHome }
+    var expandedStyle: ExpandedStyle { showsHome ? .home : ActivityPresentation.expandedStyle(for: primary) }
+
+    func showHome(_ on: Bool) {
+        guard showsHome != on else { return }
+        withAnimation(IslandAnimation.contentChange(reduceMotion: reduceMotion)) { showsHome = on }
+    }
 
     var islandSize: CGSize {
         metrics.size(mode: mode, compact: compactStyle, expanded: expandedStyle, searchHeight: searchHeight,
@@ -163,7 +173,10 @@ final class IslandViewModel {
         let closing = presentation.isExpanded && !next.isExpanded
         _ = (opening, closing)
         // The outline springs in Core Animation (IslandSurfaceView); SwiftUI only fades content.
-        withAnimation(IslandAnimation.contentChange(reduceMotion: reduceMotion)) { presentation = next }
+        withAnimation(IslandAnimation.contentChange(reduceMotion: reduceMotion)) {
+            presentation = next
+            if next.mode == .idle || next.mode == .compact { showsHome = false } // search keeps you on Home
+        }
         if modeChanged {
             transitionCount += 1
             markAnimating()

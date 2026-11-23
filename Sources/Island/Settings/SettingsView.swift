@@ -8,12 +8,13 @@ struct SettingsView: View {
     @State private var pane: Pane = .general
 
     enum Pane: String, CaseIterable, Identifiable {
-        case general = "General", appearance = "Appearance", behavior = "Behavior", activities = "Activities", teleprompter = "Teleprompter"
+        case general = "General", home = "Home", appearance = "Appearance", behavior = "Behavior", activities = "Activities", teleprompter = "Teleprompter"
         case search = "Search", ai = "AI", accessibility = "Accessibility", advanced = "Advanced"
         var id: String { rawValue }
         var symbol: String {
             switch self {
             case .general: "gearshape"
+            case .home: "house"
             case .appearance: "paintbrush"
             case .behavior: "hand.point.up.left"
             case .activities: "square.stack.3d.up"
@@ -36,6 +37,7 @@ struct SettingsView: View {
             Group {
                 switch pane {
                 case .general: GeneralSettings(settings: settings, env: env)
+                case .home: HomeSettings(settings: settings, env: env)
                 case .appearance: AppearanceSettings(settings: settings)
                 case .behavior: BehaviorSettings(settings: settings)
                 case .activities: ActivitySettings(settings: settings, env: env)

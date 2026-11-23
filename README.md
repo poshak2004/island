@@ -11,6 +11,7 @@ Island is one continuous surface that lives in your MacBook's notch. Live activi
 - **Search** (⌥Space): apps, files, actions, web results, and optional AI answers with citations, all inside the island.
 - **Teleprompter**: your script scrolls right under the camera, so you read while looking at the lens. Set a speed or let it follow your voice (on-device). Hidden from screen sharing.
 - **File shelf**: drag files to the notch to park them, drag them back out later, or drop them on AirDrop.
+- **Home**: hover the empty notch for a search bar that does anything, suggestions for right now (join the meeting that's starting, keep the file you just downloaded), and your own pinned apps, Shortcuts, websites, files and Island features. The house button reaches it even while music plays.
 - Public Apple APIs only. No private frameworks, injection, or fake data.
 
 ## Why I built it

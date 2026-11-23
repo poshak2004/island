@@ -26,6 +26,8 @@ public enum TeleprompterCommand: Equatable, Sendable {
 
 public enum ShelfCommand: Equatable, Sendable {
     case add([URL])
+    /// Show the shelf (its drop targets when empty) without waiting for a drag.
+    case reveal
     case remove(UUID)
     case clear
     /// AirDrop the given files (dropped straight onto the AirDrop target) or, when empty, the whole shelf.
@@ -49,12 +51,16 @@ public enum IslandCommand: Equatable, Sendable {
     case revealFile(URL)
     case openFile(URL)
     case launchApplication(URL)
+    /// Runs one of your Shortcuts (Shortcuts app) by name.
+    case runShortcut(name: String)
     case action(AppAction)
     case openSettings
 
     public var safety: SafetyLevel {
         switch self {
         case .action(let a): a.safety
+        // A Shortcut can do anything, so only a direct click or keypress may run it, never AI or a rule.
+        case .runShortcut: .confirm
         default: .safe
         }
     }
