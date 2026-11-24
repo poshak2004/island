@@ -142,7 +142,7 @@ final class AirPodsConnectionAnimator {
         guard var d = device else { return }
         d.productID = report.productID
         d.airPods = AirPodsModel.resolve(productID: report.vendorID == 0x004C ? report.productID : nil, name: report.name) ?? d.airPods
-        d.battery = report.battery.isEmpty ? nil : report.battery
+        d.battery = report.liveBattery
         device = d
         if phase != .detecting && phase != .idle { publish(d, lingerAfterCard: true) }
     }

@@ -21,6 +21,7 @@ final class IslandWindowController {
     /// Pointer sampling used only near the Island: the notch/menu-bar strip belongs to no app window, so
     /// macOS doesn't reliably deliver mouse-moved events from there to monitors.
     private var proximityTimer: Timer?
+    private var settleRecheck: DispatchWorkItem?
     private(set) var mouseEventCount = 0
     private(set) var lastMouse: NSPoint = .zero
     var monitorCount: Int { monitors.count }
@@ -85,8 +86,10 @@ final class IslandWindowController {
         isVisible = false
         removeMonitors()
         stopProximityPolling()
+        settleRecheck?.cancel()
         escapeKey.unregister()
         model.collapse()
+        search.deactivate() // modeChanged returns early once hidden, so end search here
         panel.allowsKey = false
         panel.orderOut(nil)
     }
@@ -157,16 +160,34 @@ final class IslandWindowController {
         // Hysteresis: entering uses the Island's edge, leaving requires going 10 pt beyond it, so a pointer
         // resting on the boundary can't make the Island flicker open and shut.
         let wasInside = model.mouseInside
-        let inside = (wasInside ? interactiveRect.insetBy(dx: -Self.exitMargin, dy: -Self.exitMargin) : interactiveRect).contains(location)
+        let rect = interactiveRect // computed once: it builds the metrics and the island size
+        let near = rect.insetBy(dx: -Self.proximityMargin, dy: -Self.proximityMargin).contains(location)
+        // Far away and nothing to undo: a pointer moving elsewhere on screen costs one rect check.
+        if !near, !wasInside, proximityTimer == nil, panel.ignoresMouseEvents { return }
+        let inside = (wasInside ? rect.insetBy(dx: -Self.exitMargin, dy: -Self.exitMargin) : rect).contains(location)
         // Outside the Island the window is fully click-through — in every mode, including search.
         if panel.ignoresMouseEvents == inside { panel.ignoresMouseEvents = !inside }
         model.mouseInsideChanged(inside)
-        updateProximityPolling(near: interactiveRect.insetBy(dx: -120, dy: -120).contains(location))
+        updateProximityPolling(near: near)
     }
 
-    /// 30 Hz pointer check while the pointer is near the Island or the Island is open; off otherwise.
+    static let proximityMargin: CGFloat = 120
+    /// Long enough for the slowest open/close spring to settle.
+    static let settleRecheckDelay: TimeInterval = 0.6
+
+    /// After the shape morphs, check the pointer once: the Island may have grown under (or shrunk
+    /// away from) a pointer that never moved. Replaces polling for as long as the Island is open.
+    private func recheckPointerAfterMorph() {
+        settleRecheck?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.refreshMouseState() }
+        settleRecheck = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.settleRecheckDelay, execute: work)
+    }
+
+    /// 30 Hz pointer check only while the pointer is near the Island; off otherwise (an open Island
+    /// with the pointer far away costs nothing — `recheckPointerAfterMorph` covers shape changes).
     private func updateProximityPolling(near: Bool) {
-        let needed = near || model.presentation.isExpanded
+        let needed = near
         if needed, proximityTimer == nil {
             let t = Timer(timeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
                 MainActor.assumeIsolated { self?.refreshMouseState() }
@@ -214,7 +235,10 @@ final class IslandWindowController {
         lastSurfaceMode = mode
         surface.reduceMotion = model.reduceMotion
         surface.speed = model.settings.animationSpeed
-        if surface.current != geometry { surface.apply(geometry, motion: motion) }
+        if surface.current != geometry {
+            surface.apply(geometry, motion: motion)
+            recheckPointerAfterMorph()
+        }
     }
 
     // MARK: Mode changes

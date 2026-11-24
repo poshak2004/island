@@ -142,7 +142,7 @@ private struct ActivitySettings: View {
     static let configurable: [(ActivityKind, String)] = [
         (.media, "Music, Spotify, VLC"), (.timer, "Countdown timers"), (.download, "Safari, Chrome & Finder downloads"),
         (.recording, "Shows when an app uses the mic or camera"), (.battery, "Charging, low battery, full"),
-        (.network, "Going offline / back online"), (.device, "AirPods, headphones, speakers"),
+        (.network, "When you go offline"), (.device, "AirPods, headphones and speakers connecting"),
         (.calendar, "Upcoming events (asks for Calendar access)"), (.clipboard, "Local “Copied” confirmations"),
         (.notification, "Short system events"),
         (.teleprompter, "Scrolling script under the camera"),

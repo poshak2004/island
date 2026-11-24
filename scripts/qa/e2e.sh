@@ -13,7 +13,8 @@ check() {
   if [[ "$2" == "$3" ]]; then echo "  ✓ $1"; PASS=$((PASS+1))
   else echo "  ✗ $1 (got '$2', want '$3')"; FAIL=$((FAIL+1)); grep -E "^trace:|^log:" "$D" | tail -10 | sed 's/^/      /'; fi
 }
-away() { "$Q" move 300 650; sleep 0.6; }
+# Longer than the default collapse delay (0.7 s) plus the close spring, so the Island has really closed.
+away() { "$Q" move 300 650; sleep 1.0; }
 hover() { "$Q" glide 735 400 735 14 12 8; sleep 0.7; }
 center() { "$Q" ax "Island" ; }
 
@@ -58,7 +59,9 @@ dump; check "clicking a bubble selects it" "$(sed -n 's/^primary=\(timer\).*/\1/
 hover
 scripts/qa/press.sh "Pause timer"; sleep 0.4; dump; check "Pause button" "$(sed -n 's/^primary=timer[^ ]* \([a-z]*\)/\1/p' "$D")" low
 scripts/qa/press.sh "Resume timer"; sleep 0.4; dump; check "Resume button" "$(sed -n 's/^primary=timer[^ ]* \([a-z]*\)/\1/p' "$D")" normal
-scripts/qa/press.sh "Stop timer"; sleep 0.5; dump; check "Stop button" "$(grep -c '^primary=timer' "$D" | tr -d ' ')" 0
+if scripts/qa/press.sh "Stop timer"; then found=yes; else found=no; fi
+sleep 0.5; dump; check "Stop button found" "$found" yes
+check "Stop button stops the timer" "$(grep -c '^primary=timer' "$D" | tr -d ' ')" 0
 check "still expanded under pointer" "$(mode)" expanded
 "$Q" click 300 650; sleep 0.6; check "click outside collapses" "$(mode)" compact
 "$R" clear; sleep 0.4; away; check "idle when empty" "$(mode)" idle

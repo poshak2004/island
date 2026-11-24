@@ -4,8 +4,8 @@ import SwiftUI
 
 @MainActor
 enum ImageCache {
-    private static let artwork = NSCache<NSString, NSImage>()
-    private static let icons = NSCache<NSString, NSImage>()
+    private static let artwork: NSCache<NSString, NSImage> = { let c = NSCache<NSString, NSImage>(); c.countLimit = 20; return c }()
+    private static let icons: NSCache<NSString, NSImage> = { let c = NSCache<NSString, NSImage>(); c.countLimit = 200; return c }()
 
     static func artwork(for media: MediaActivity) -> NSImage? {
         guard let data = media.artwork else { return nil }
@@ -21,6 +21,16 @@ enum ImageCache {
         guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else { return nil }
         let img = NSWorkspace.shared.icon(forFile: url.path)
         icons.setObject(img, forKey: bundleID as NSString)
+        return img
+    }
+
+    /// Finder icon for a file or app path, cached — views ask on every redraw (hover, keystrokes),
+    /// and `NSWorkspace.icon(forFile:)` hits the disk each time.
+    static func fileIcon(path: String) -> NSImage {
+        let key = "file:\(path)" as NSString
+        if let img = icons.object(forKey: key) { return img }
+        let img = NSWorkspace.shared.icon(forFile: path)
+        icons.setObject(img, forKey: key)
         return img
     }
 }
@@ -70,8 +80,10 @@ struct MediaCompactLeading: View {
 struct MediaCompactTrailing: View {
     let media: MediaActivity
     @Environment(\.islandReduceMotion) private var reduceMotion
+    @Environment(\.islandContentActive) private var active
     var body: some View {
-        EqualizerView(playing: media.playbackState == .playing,
+        // The bars only animate while this layer is on screen (it stays mounted, hidden, when expanded).
+        EqualizerView(playing: media.playbackState == .playing && active,
                       colors: ArtworkPalette.colors(for: media.artworkID ?? media.trackKey, image: ImageCache.artwork(for: media)),
                       reduceMotion: reduceMotion)
             .frame(width: 22, height: 16)

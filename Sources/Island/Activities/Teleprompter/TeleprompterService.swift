@@ -22,6 +22,9 @@ final class TeleprompterService {
     @ObservationIgnored var isPointerInside: () -> Bool = { false }
     /// Voice follow problems (permission denied, recogniser unavailable) for the UI to surface.
     private(set) var lastVoiceError: String?
+    /// Paused because the script went out of sight (covered by another activity, or the Island
+    /// collapsed) — resumed automatically when it's back, so a presenter never loses their place.
+    @ObservationIgnored private var pausedWhileHidden = false
 
     init(settings: IslandSettings, sink: @escaping (ActivityUpdate) -> Void) {
         self.settings = settings
@@ -47,6 +50,7 @@ final class TeleprompterService {
         guard var a = current else { return }
         switch command {
         case .togglePlayPause:
+            pausedWhileHidden = false // the presenter's choice wins
             if a.state == .playing { a.pause(at: now) } else { a.play(at: now) }
         case .restart:
             a.seek(toWord: 0, at: now)
@@ -87,6 +91,7 @@ final class TeleprompterService {
     func stop() {
         guard current != nil else { return }
         current = nil
+        pausedWhileHidden = false
         finishTask?.cancel()
         voice.stop()
         sink(.remove(id: Self.activityID))
@@ -100,6 +105,22 @@ final class TeleprompterService {
         finishTask?.cancel()
         voice.stop()
         onSessionChange?(false)
+    }
+
+    /// The script is (or isn't) on screen as the expanded primary.
+    func setVisible(_ visible: Bool) {
+        guard var a = current else { pausedWhileHidden = false; return }
+        let now = Date()
+        if !visible, a.state == .playing {
+            a.pause(at: now)
+            pausedWhileHidden = true
+            update(a)
+        } else if visible, pausedWhileHidden {
+            pausedWhileHidden = false
+            guard a.state == .paused else { return }
+            a.play(at: now)
+            update(a)
+        }
     }
 
     // MARK: Internals

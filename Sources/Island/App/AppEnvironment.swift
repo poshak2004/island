@@ -195,6 +195,7 @@ extension AppEnvironment {
             return TeleprompterStyle.lineCharacters(width: width, fontSize: CGFloat(self.settings.teleprompterFontSize))
         }
         teleprompter.isPointerInside = { [weak self] in self?.island.mouseInside ?? false }
+        observeTeleprompterVisibility()
         teleprompter.onSessionChange = { [weak self] active in
             guard let self else { return }
             self.updateCaptureVisibility()
@@ -214,6 +215,16 @@ extension AppEnvironment {
             default: break
             }
         }
+    }
+
+    /// The script only advances while you can see it: covered by another activity or collapsed, it pauses.
+    private func observeTeleprompterVisibility() {
+        let visible = withObservationTracking {
+            island.mode == .expanded && !island.showsHome && island.primary?.id == TeleprompterService.activityID
+        } onChange: { [weak self] in
+            DispatchQueue.main.async { self?.observeTeleprompterVisibility() }
+        }
+        teleprompter.setVisible(visible)
     }
 
     /// Search, automation and the menu bar start the saved script; with none saved, the clipboard.

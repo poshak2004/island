@@ -56,17 +56,16 @@ final class AudioDeviceProvider {
             return
         }
         if lastWasExternal, lastName?.lowercased().contains("airpods") == true { onAirPodsDisconnected?() }
-        if external {
-            activity = DeviceActivity(name: name, type: Self.type(name: name, transport: transport), connected: true)
-            bus.publish(.deviceConnected(name: name))
-        } else if lastWasExternal, let previous = lastName {
-            activity = DeviceActivity(name: previous, type: .headphones, connected: false)
-        } else {
+        // Devices leave quietly — no "Disconnected" popup; the connected card is simply cleared.
+        guard external else {
+            if lastWasExternal { sink(.remove(id: "device")) }
             return
         }
+        activity = DeviceActivity(name: name, type: Self.type(name: name, transport: transport), connected: true)
+        bus.publish(.deviceConnected(name: name))
         // Linger a little longer than the automatic presentation so the card never vanishes mid-animation.
         sink(.upsert(Activity(id: "device", kind: .device, priority: .high, content: .device(activity),
-                              expiresAt: Date().addingTimeInterval(activity.connected ? 5 : 3))))
+                              expiresAt: Date().addingTimeInterval(5))))
     }
 
     static func type(name: String, transport: UInt32) -> DeviceActivity.DeviceType {

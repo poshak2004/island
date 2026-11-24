@@ -113,7 +113,7 @@ struct SearchRow: View {
 
     @ViewBuilder private var icon: some View {
         if let url = result.iconFileURL {
-            Image(nsImage: NSWorkspace.shared.icon(forFile: url.path)).resizable()
+            Image(nsImage: ImageCache.fileIcon(path: url.path)).resizable()
         } else if let fav = result.faviconURL {
             AsyncImage(url: fav) { img in img.resizable().clipShape(RoundedRectangle(cornerRadius: 4)) } placeholder: {
                 Image(systemName: result.symbol ?? "globe").foregroundStyle(.white.opacity(0.7))

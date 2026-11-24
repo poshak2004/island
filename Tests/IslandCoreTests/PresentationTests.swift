@@ -148,18 +148,21 @@ func registerPresentationTests() {
         expect(m.notchSize.width >= 80 && m.scale == 1 && m.expandedCornerRadius == 48)
     }
 
-    test(S, "metrics: secondaries live inside the trailing wing; notch gap stays on the notch") {
+    test(S, "metrics: compact stays centred on the notch with secondaries; nothing is squeezed") {
         let m = IslandMetrics(notchSize: CGSize(width: 180, height: 32), hasNotch: true)
         let none = m.size(mode: .compact, compact: .standard, expanded: .home, minimals: 0)
-        let two = m.size(mode: .compact, compact: .standard, expanded: .home, minimals: 2)
-        expect(two.width > none.width)
-        let offset = m.horizontalOffset(mode: .compact, compact: .standard, minimals: 2)
-        let wings = m.compactWings(.standard, minimals: 2)
-        // Left edge of the notch gap, measured from the anchor, must equal -notch/2.
-        expectEqual(-two.width / 2 + offset + wings.leading, -90)
-        expectEqual(m.horizontalOffset(mode: .expanded, compact: .standard, minimals: 2), 0)
-        let r = m.hitRect(islandSize: two, offset: offset, mode: .compact)
-        expect(r.maxX > two.width / 2) // shifted right with the trailing wing
+        for n in 1...IslandMetrics.maxMinimals {
+            let size = m.size(mode: .compact, compact: .standard, expanded: .home, minimals: n)
+            let wings = m.compactWings(.standard, minimals: n)
+            expect(size.width > none.width)
+            // Balanced: both wings the same width, so the pill is centred on the notch (no sideways shift).
+            expectEqual(wings.leading, wings.trailing)
+            expectEqual(m.horizontalOffset(mode: .compact, compact: .standard, minimals: n), 0)
+            // Room for the primary glyph plus one full minimal slot and its separator on each side.
+            expect(wings.trailing >= m.wingWidth(.standard) + m.minimalSlot + m.minimalSeparator, "n=\(n)")
+        }
+        let r = m.hitRect(islandSize: none, offset: 0, mode: .compact)
+        expectEqual(r.midX, 0)
     }
 
     test(S, "metrics: compact is iPhone-narrow") {
@@ -202,6 +205,16 @@ func registerRegressionTests() {
         mgr.removeAll()
         expectEqual(calls, 2)
         expect(mgr.primary == nil)
+    }
+
+    test(S, "one unreadable setting doesn't reset all the others") {
+        let d = UserDefaults(suiteName: "island.tests.\(UUID().uuidString)")!
+        let raw = #"{"glassIntensity": 0.3, "display": {"future": "value"}, "aiProvider": "fromTheFuture", "hoverExpansion": false}"#
+        d.set(raw.data(using: .utf8), forKey: "island.settings.v1")
+        let s = IslandSettings(defaults: d)
+        expectEqual(s.glassIntensity, 0.3)
+        expectEqual(s.hoverExpansion, false)
+        expect(d.data(forKey: "island.settings.v1.unreadable") != nil, "the original is kept for recovery")
     }
 
     test(S, "old default hover delay migrates") {

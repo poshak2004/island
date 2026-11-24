@@ -1,70 +1,53 @@
 import SwiftUI
 
-/// Single place for Island motion. Springs are interruptible: retargeting mid-flight preserves velocity,
-/// so hovering in/out quickly never "restarts" the morph.
+/// The Island's motion system — one family of springs, shared by SwiftUI content and the Core
+/// Animation outline (`IslandSurfaceView`), so shape and content always move on the same timing.
+///
+/// HIG › Motion: brief, precise, non-bouncy for frequent interactions; a little swell only on open.
+/// Apple closes faster than it opens. Every duration scales with Settings › Animation speed.
 enum IslandAnimation {
-    /// SwiftUI only animates *content* now (Core Animation owns the outline spring), so this is short.
+    /// A spring as response (s) + damping ratio — the form both SwiftUI and `CASpringAnimation` take.
+    struct SpringSpec: Equatable {
+        let response: Double
+        let dampingRatio: Double
+    }
+
+    /// Outline springs (also used by `IslandSurfaceView`).
+    static let open = SpringSpec(response: 0.46, dampingRatio: 0.74)   // soft open with a gentle swell
+    static let close = SpringSpec(response: 0.34, dampingRatio: 1.0)   // quicker, settles without bounce
+    static let morph = SpringSpec(response: 0.42, dampingRatio: 0.84)  // in-place resizes
+
+    static func clampedSpeed(_ speed: Double) -> Double { max(0.5, min(2, speed)) }
+
+    /// Content swaps inside the open Island (home ↔ activity, tab changes).
     static func contentChange(reduceMotion: Bool) -> Animation {
-        reduceMotion ? .easeInOut(duration: 0.15) : .easeOut(duration: 0.24)
+        reduceMotion ? .easeInOut(duration: 0.2) : .smooth(duration: 0.25)
     }
 
-    /// General morph (activity changes, resizes).
+    /// Resizes of the open Island — the same spring the outline uses, so the clip and content agree.
     static func morph(reduceMotion: Bool, speed: Double) -> Animation {
-        if reduceMotion { return .easeInOut(duration: 0.18) }
-        let s = max(0.5, min(2, speed))
-        return .spring(response: 0.36 / s, dampingFraction: 0.84)
+        if reduceMotion { return .easeInOut(duration: 0.2) }
+        return .spring(response: morph.response / clampedSpeed(speed), dampingFraction: morph.dampingRatio)
     }
 
-    /// Opening: quick with a hint of overshoot, like the iPhone island.
-    static func expand(reduceMotion: Bool, speed: Double) -> Animation {
-        if reduceMotion { return .easeOut(duration: 0.18) }
-        return .spring(response: 0.34 / max(0.5, min(2, speed)), dampingFraction: 0.74)
+    /// Content arriving: waits only a beat for the glass, then settles without bounce.
+    static func contentIn(reduceMotion: Bool) -> Animation {
+        reduceMotion ? .easeInOut(duration: 0.2) : .spring(duration: 0.3, bounce: 0).delay(0.05)
     }
 
-    /// Closing: crisp, no bounce, so the Island settles cleanly into the notch.
-    static func collapse(reduceMotion: Bool, speed: Double) -> Animation {
-        if reduceMotion { return .easeIn(duration: 0.16) }
-        return .spring(response: 0.30 / max(0.5, min(2, speed)), dampingFraction: 0.95)
+    /// Content leaving: quick, but a spring rather than a cut, so it shrinks with the shape.
+    static func contentOut(reduceMotion: Bool) -> Animation {
+        reduceMotion ? .easeInOut(duration: 0.12) : .spring(duration: 0.14, bounce: 0)
     }
 
-    static func content(reduceMotion: Bool, speed: Double) -> Animation {
-        if reduceMotion { return .easeInOut(duration: 0.15) }
-        return .spring(response: 0.36 / max(0.5, min(2, speed)), dampingFraction: 0.9)
-    }
-
-    /// Insert/removal transition for content inside the morphing surface.
-    ///
-    /// It carries no animation of its own, so content moves on the *same* spring as the Island's outline.
-    /// Opacity is phased on that shared progress: outgoing content is fully gone by the halfway point and
-    /// incoming content only starts appearing after it, so compact and expanded never overlap. Content
-    /// also sharpens from a light blur and grows from the top edge, like the iPhone island.
+    /// Insert/removal transition for content inside the morphing surface. Removal is quick and
+    /// insertion follows it, so compact and expanded content never overlap.
     static func contentTransition(reduceMotion: Bool) -> AnyTransition {
         if reduceMotion { return .opacity }
-        // Built-in, render-only effects (no per-frame body evaluation). Removal is quick, insertion waits
-        // for it, so compact and expanded never overlap.
         return .asymmetric(
             insertion: .opacity.combined(with: .scale(scale: 0.96, anchor: .top))
-                .animation(.easeOut(duration: 0.24).delay(0.1)),
+                .animation(contentIn(reduceMotion: false)),
             removal: .opacity.combined(with: .scale(scale: 0.98, anchor: .top))
-                .animation(.easeIn(duration: 0.08)))
-    }
-}
-
-/// Animatable content-morph state; `progress` 0 = hidden, 1 = settled.
-struct MorphContent: ViewModifier, Animatable {
-    var progress: Double
-
-    var animatableData: Double {
-        get { progress }
-        set { progress = newValue }
-    }
-
-    func body(content: Content) -> some View {
-        let p = min(1, max(0, progress))
-        // Visible only in the second half of the shared spring.
-        let opacity = max(0, (p - 0.5) / 0.5)
-        content
-            .opacity(opacity)
-            .scaleEffect(0.9 + 0.1 * p, anchor: .top)
+                .animation(contentOut(reduceMotion: false)))
     }
 }

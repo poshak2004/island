@@ -12,6 +12,8 @@ public enum CompactStyle: Equatable, Sendable {
 /// Content-driven expanded heights.
 public enum ExpandedStyle: Equatable, Sendable {
     case home, media, timer, download, event, device, research, teleprompter, shelf
+    /// AirPods connection banner: one short, wide row (art · name · battery ring), no header.
+    case airPods
 }
 
 /// All Island geometry, derived from the notch. Nothing here is hard-coded to a screen.
@@ -29,8 +31,10 @@ public struct IslandMetrics: Equatable, Sendable {
     }
 
     public var compactHeight: CGFloat { notchSize.height }
-    /// Width each secondary ("minimal") activity adds inside the trailing wing.
+    /// Fixed slot for one secondary ("minimal") activity — every glyph gets the same square, centred.
     public var minimalSlot: CGFloat { 22 * scale }
+    /// Gap between the primary's glyph and a minimal: hairline divider plus breathing room either side.
+    public var minimalSeparator: CGFloat { 9 * scale }
     public static let maxMinimals = 2
 
     /// iPhone-sized wings: just enough for one glyph each side, so the Island covers as little of the
@@ -42,21 +46,29 @@ public struct IslandMetrics: Equatable, Sendable {
         }
     }
 
-    /// Leading/trailing wing widths. Secondary activities sit inside the trailing wing (not floating over
-    /// the menu bar), so the wings can differ; `horizontalOffset` keeps the notch gap on the notch.
+    /// Leading/trailing wing widths. Always equal, so the pill stays centred on the notch
+    /// (HIG › Live Activities: "a balanced layout with similarly sized views"). Secondaries sit at the
+    /// outer edges — the first on the trailing side, the second on the leading side — and each side
+    /// reserves a full slot plus separator, so nothing is ever squeezed.
     public func compactWings(_ style: CompactStyle, minimals: Int) -> (leading: CGFloat, trailing: CGFloat) {
-        let base = wingWidth(style)
-        let n = CGFloat(min(max(0, minimals), Self.maxMinimals))
-        return (base, base + (n > 0 ? n * minimalSlot + 6 * scale : 0))
+        let n = min(max(0, minimals), Self.maxMinimals)
+        let w = wingWidth(style) + (n > 0 ? minimalSlot + minimalSeparator : 0)
+        return (w, w)
     }
 
-    public func horizontalOffset(mode: IslandMode, compact: CompactStyle, minimals: Int) -> CGFloat {
-        guard mode == .compact else { return 0 }
-        let w = compactWings(compact, minimals: minimals)
-        return (w.trailing - w.leading) / 2
-    }
+    /// The compact pill is symmetric, so it never shifts sideways. Kept as API for callers and tests.
+    public func horizontalOffset(mode: IslandMode, compact: CompactStyle, minimals: Int) -> CGFloat { 0 }
 
     public var expandedWidth: CGFloat { max(notchSize.width + 160, 440 * scale, notchSize.width + 2 * wingWidth(.wide) + 24) }
+
+    /// The AirPods banner is narrower than a card: just art, name and ring, like the iPhone's.
+    public var airPodsBannerWidth: CGFloat { max(notchSize.width + 190 * scale, 380 * scale) }
+    /// HIG › Live Activities: even, concentric margins — the standard 14 pt on every side.
+    public static let airPodsBannerMargin: CGFloat = 14
+
+    public func expandedWidth(_ style: ExpandedStyle) -> CGFloat {
+        style == .airPods ? airPodsBannerWidth : expandedWidth
+    }
     public var searchWidth: CGFloat { max(notchSize.width + 220, 580 * scale) }
     public var searchMaxHeight: CGFloat { 440 * scale }
 
@@ -73,6 +85,7 @@ public struct IslandMetrics: Equatable, Sendable {
         case .download: 54
         case .event: 46
         case .device: 64
+        case .airPods: 40
         case .research: 280
         case .teleprompter: 150
         case .shelf: 104
@@ -81,7 +94,8 @@ public struct IslandMetrics: Equatable, Sendable {
 
     public func expandedHeight(_ style: ExpandedStyle, measuredContent: CGFloat? = nil) -> CGFloat {
         let content = measuredContent.map { min(max($0, 20), 320) } ?? estimatedContentHeight(style)
-        return compactHeight + Self.expandedTopPadding + content + Self.expandedBottomPadding
+        let bottom = style == .airPods ? Self.airPodsBannerMargin : Self.expandedBottomPadding
+        return compactHeight + Self.expandedTopPadding + content + bottom
     }
 
 
@@ -96,7 +110,7 @@ public struct IslandMetrics: Equatable, Sendable {
             let w = compactWings(compact, minimals: minimals)
             return CGSize(width: notchSize.width + w.leading + w.trailing, height: compactHeight)
         case .expanded:
-            return CGSize(width: expandedWidth, height: expandedHeight(expanded, measuredContent: measuredContent))
+            return CGSize(width: expandedWidth(expanded), height: expandedHeight(expanded, measuredContent: measuredContent))
         case .search:
             let h = min(searchMaxHeight, max(compactHeight + 52 * scale, searchHeight))
             return CGSize(width: searchWidth, height: h)

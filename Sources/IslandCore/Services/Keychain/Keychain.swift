@@ -7,14 +7,23 @@ public enum Keychain {
 
     public enum KeychainError: Error, Equatable { case status(OSStatus) }
 
+    /// Saves, replaces or (with nil/empty) removes a value. A replacement updates in place, so if the
+    /// keychain refuses the write (locked, no interaction allowed) the working key is still there.
     public static func set(_ value: String?, account: String, service: String = service) throws {
         let base: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
                                    kSecAttrService as String: service,
                                    kSecAttrAccount as String: account]
-        SecItemDelete(base as CFDictionary)
-        guard let value, !value.isEmpty else { return }
+        guard let value, !value.isEmpty else {
+            let status = SecItemDelete(base as CFDictionary)
+            guard status == errSecSuccess || status == errSecItemNotFound else { throw KeychainError.status(status) }
+            return
+        }
+        let data = Data(value.utf8)
+        let update = SecItemUpdate(base as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+        if update == errSecSuccess { return }
+        guard update == errSecItemNotFound else { throw KeychainError.status(update) }
         var add = base
-        add[kSecValueData as String] = Data(value.utf8)
+        add[kSecValueData as String] = data
         add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
         let status = SecItemAdd(add as CFDictionary, nil)
         guard status == errSecSuccess else { throw KeychainError.status(status) }
