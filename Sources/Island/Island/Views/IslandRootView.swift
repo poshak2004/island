@@ -30,7 +30,7 @@ struct IslandRootView: View {
             // and duplicate matched IDs in mounted views would misplace content.
             .environment(\.islandReduceMotion, model.reduceMotion)
             .environment(\.airPodsRevealed, model.airPods.map { $0.phase == .idle || $0.isRevealed } ?? true)
-            .environment(\.islandCommands, IslandCommandSink { [weak model] c in model?.commands.perform(c) })
+            .environment(\.islandCommands, model.commandSink)
             .environment(\.colorScheme, .dark)
             .environment(\.teleprompterFontSize, CGFloat(model.settings.teleprompterFontSize))
             .environment(\.teleprompterReady, !model.settings.teleprompterScript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -55,12 +55,12 @@ struct IslandRootView: View {
                                                         minimals: min(model.secondaries.count, IslandMetrics.maxMinimals)))
                     .id("compact-\(primary.id)")
                     .environment(\.islandContentActive, compactShown)
-                    .layer(shown: compactShown, delay: 0.1, reduceMotion: reduce)
+                    .layer(shown: compactShown, reduceMotion: reduce)
             }
             ExpandedLayout(model: model, metrics: metrics)
-                .frame(width: metrics.expandedWidth)
+                .frame(width: metrics.expandedWidth(model.expandedStyle))
                 .environment(\.islandContentActive, mode == .expanded)
-                .layer(shown: mode == .expanded, delay: 0.1, reduceMotion: reduce)
+                .layer(shown: mode == .expanded, reduceMotion: reduce)
             if mode == .search {
                 SearchSurface(model: search, metrics: metrics)
                     .frame(width: metrics.searchWidth, height: size.height, alignment: .top)
@@ -71,19 +71,20 @@ struct IslandRootView: View {
 }
 
 private extension View {
-    /// Crossfade a mounted layer: leaving is quick, arriving waits for the glass to mostly open.
-    func layer(shown: Bool, delay: Double, reduceMotion: Bool) -> some View {
+    /// Crossfade a mounted layer on the shared content springs: leaving is quick, arriving follows.
+    func layer(shown: Bool, reduceMotion: Bool) -> some View {
         self
             .opacity(shown ? 1 : 0)
             .scaleEffect(shown || reduceMotion ? 1 : 0.97, anchor: .top)
             .allowsHitTesting(shown)
             .accessibilityHidden(!shown)
-            .animation(shown ? .easeOut(duration: reduceMotion ? 0.15 : 0.24).delay(reduceMotion ? 0 : delay)
-                             : .easeIn(duration: reduceMotion ? 0.1 : 0.08), value: shown)
+            .animation(shown ? IslandAnimation.contentIn(reduceMotion: reduceMotion)
+                             : IslandAnimation.contentOut(reduceMotion: reduceMotion), value: shown)
     }
 }
 
-/// `[ leading ]  notch  [ trailing · minimals ]`
+/// `[ minimal₂ │ leading ]  notch  [ trailing │ minimal₁ ]` — both wings the same width, so the pill
+/// stays centred on the notch; every minimal gets the same fixed square, vertically centred.
 struct CompactLayout: View {
     let activity: Activity
     let minimals: [Activity]
@@ -96,33 +97,47 @@ struct CompactLayout: View {
         let wings = metrics.compactWings(style, minimals: minimals.count)
         let pad = max(8, metrics.compactHeight * 0.28)
         HStack(spacing: 0) {
-            CompactLeadingView(activity: activity, showsTitle: showsTitle)
-                .frame(width: wings.leading - pad, alignment: .leading)
-                .padding(.leading, pad)
+            HStack(spacing: 0) {
+                if minimals.count > 1 {
+                    minimal(minimals[1])
+                    separator
+                }
+                CompactLeadingView(activity: activity, showsTitle: showsTitle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(width: wings.leading - pad, height: metrics.compactHeight)
+            .padding(.leading, pad)
             Color.clear.frame(width: metrics.notchSize.width)
             HStack(spacing: 0) {
                 CompactTrailingView(activity: activity)
                     .frame(maxWidth: .infinity, alignment: .trailing)
-                if !minimals.isEmpty {
-                    Capsule().fill(.white.opacity(0.18)).frame(width: 1, height: metrics.compactHeight * 0.45)
-                        .padding(.horizontal, 4)
-                    ForEach(minimals) { m in
-                        MinimalView(activity: m)
-                            .frame(width: 18, height: 18)
-                            .frame(width: metrics.minimalSlot)
-                            .islandMatched("bubble-\(m.id)", in: ns)
-                            .accessibilityElement(children: .ignore)
-                            .accessibilityLabel(ActivityPresentation.accessibilityLabel(for: m))
-                            .transition(.scale(scale: 0.4).combined(with: .opacity))
-                    }
+                if let first = minimals.first {
+                    separator
+                    minimal(first)
                 }
             }
-            .frame(width: wings.trailing - pad)
+            .frame(width: wings.trailing - pad, height: metrics.compactHeight)
             .padding(.trailing, pad)
         }
         .frame(height: metrics.compactHeight)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(ActivityPresentation.accessibilityLabel(for: activity))
+    }
+
+    private var separator: some View {
+        Capsule().fill(.white.opacity(0.18))
+            .frame(width: 1, height: metrics.compactHeight * 0.45)
+            .frame(width: metrics.minimalSeparator)
+    }
+
+    private func minimal(_ m: Activity) -> some View {
+        MinimalView(activity: m)
+            .frame(width: 18 * metrics.scale, height: 18 * metrics.scale)
+            .frame(width: metrics.minimalSlot, height: metrics.compactHeight)
+            .islandMatched("bubble-\(m.id)", in: ns)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(ActivityPresentation.accessibilityLabel(for: m))
+            .transition(.opacity.combined(with: .scale(scale: 0.6)))
     }
 }
 
@@ -153,14 +168,22 @@ struct ExpandedLayout: View {
             .onPreferenceChange(ExpandedContentHeightKey.self) { [style = model.expandedStyle] h in
                 model.reportContentHeight(h, for: style)
             }
-            .padding(.horizontal, 22)
+            .padding(.horizontal, isBanner ? IslandMetrics.airPodsBannerMargin : 22)
             .padding(.top, IslandMetrics.expandedTopPadding)
             .frame(maxHeight: .infinity, alignment: .top)
         }
+        // The banner replaces whatever was there outright: a crossfade let the Home clock ghost through.
+        // Scoped to the switch itself, so the banner's own animations (the ring sweep) still run.
+        .transaction(value: isBanner) { t in if isBanner { t.animation = nil } }
     }
 
+    /// The AirPods banner has no header: just the notch band, then its one row.
+    private var isBanner: Bool { model.expandedStyle == .airPods }
+
     @ViewBuilder private var header: some View {
-        if model.isShowingHome, model.primary == nil, let home = model.home {
+        if isBanner {
+            Color.clear
+        } else if model.isShowingHome, model.primary == nil, let home = model.home {
             HomeHeader(home: home, notchWidth: metrics.notchSize.width)
         } else {
             activityHeader
@@ -179,7 +202,7 @@ struct ExpandedLayout: View {
             Color.clear.frame(width: metrics.notchSize.width)
             ActivitySwitcher(model: model)
                 .frame(maxWidth: .infinity, alignment: .trailing)
-                .padding(.trailing, 20)
+                .padding(.trailing, 22) // matches the 22 pt leading margin
         }
     }
 

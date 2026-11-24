@@ -19,6 +19,10 @@ final class BrowserMediaProvider: MediaProvider {
     private var lifecycle: AppLifecycleObserver?
     private var pollTask: Task<Void, Never>?
     private var last: MediaActivity?
+    /// Each poll runs a script in the browser: fast while media plays, slow otherwise.
+    static let playingInterval: TimeInterval = 4
+    static let idleInterval: TimeInterval = 15
+    private var interval: TimeInterval { last?.playbackState == .playing ? Self.playingInterval : Self.idleInterval }
     private var location: (window: Int, tab: Int)?
 
     init(bundleID: String, appName: String, engine: Engine) {
@@ -53,7 +57,7 @@ final class BrowserMediaProvider: MediaProvider {
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.poll()
-                try? await Task.sleep(nanoseconds: 4_000_000_000)
+                try? await Task.sleep(nanoseconds: UInt64((self?.interval ?? Self.idleInterval) * 1_000_000_000))
             }
         }
     }

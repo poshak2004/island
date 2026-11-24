@@ -223,12 +223,33 @@ public final class IslandSettings {
         if let v = s.homeSuggestions { homeSuggestions = v }
     }
 
+    static let unreadableBackupKey = storageKey + ".unreadable"
+
     private func load() {
         loading = true
         defer { loading = false }
-        guard let data = defaults.data(forKey: Self.storageKey),
-              let snap = try? JSONDecoder().decode(Snapshot.self, from: data) else { return }
-        apply(snap)
+        guard let data = defaults.data(forKey: Self.storageKey) else { return }
+        if let snap = try? JSONDecoder().decode(Snapshot.self, from: data) {
+            apply(snap)
+            return
+        }
+        // Something didn't decode (a value from a newer version, a hand edit). Keep the original for
+        // recovery, then recover every field that still reads — one bad value must never reset the rest.
+        defaults.set(data, forKey: Self.unreadableBackupKey)
+        for snap in Self.recoverFields(from: data) { apply(snap) }
+    }
+
+    /// Decodes each top-level field on its own; fields that fail are dropped. `kindsRevision` travels
+    /// with `enabledKinds`, since the migration reads both together.
+    static func recoverFields(from data: Data) -> [Snapshot] {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [] }
+        let revision = object["kindsRevision"]
+        return object.compactMap { key, value in
+            var single: [String: Any] = [key: value]
+            if key == "enabledKinds", let revision { single["kindsRevision"] = revision }
+            guard let json = try? JSONSerialization.data(withJSONObject: single) else { return nil }
+            return try? JSONDecoder().decode(Snapshot.self, from: json)
+        }
     }
 
     private func save() {

@@ -84,4 +84,30 @@ func registerAirPodsTests() {
         expectEqual(AirPodsBattery(left: 150).left, 100)
         expect(AirPodsBattery().isEmpty && AirPodsBattery().headline == nil)
     }
+
+    test(S, "case level alone is never headlined as the buds' level") {
+        expect(AirPodsBattery(caseLevel: 1).headline == nil)
+        expectEqual(AirPodsBattery(left: 60, right: 59, caseLevel: 1).headline, 59)
+    }
+
+    test(S, "battery is only live for a device the system reports as connected") {
+        let cached = BluetoothDeviceReport(name: "AirPods Pro", address: nil, productID: 0x2024, vendorID: 0x004C,
+                                           connected: false, battery: AirPodsBattery(left: 60, right: 59))
+        expect(cached.liveBattery == nil, "a not-connected entry's levels are stale cache")
+        var live = cached
+        live.connected = true
+        expectEqual(live.liveBattery?.headline, 59)
+        live.battery = AirPodsBattery()
+        expect(live.liveBattery == nil, "nothing reported → no battery, never a guess")
+    }
+
+    test(S, "connection banner is a short, wide pill: narrower than a card, no header row") {
+        let m = IslandMetrics(notchSize: CGSize(width: 185, height: 32), hasNotch: true)
+        let banner = m.size(mode: .expanded, compact: .standard, expanded: .airPods)
+        let card = m.size(mode: .expanded, compact: .standard, expanded: .device)
+        expect(banner.width < card.width, "banner \(banner.width) should be narrower than card \(card.width)")
+        expect(banner.width >= m.notchSize.width + 160, "banner must clear the notch with room for art and ring")
+        expect(banner.height < card.height, "banner \(banner.height) should be shorter than card \(card.height)")
+        expect(banner.height > m.compactHeight + 40, "banner must fit a 44pt row below the notch")
+    }
 }

@@ -12,6 +12,9 @@ final class IslandViewModel {
     let settings: IslandSettings
     let accessibility: AccessibilityMonitor
     @ObservationIgnored var commands: CommandRouter
+    /// One sink for the whole life of the Island: a new closure on every root pass would make every
+    /// view that reads `islandCommands` re-render along with it.
+    @ObservationIgnored private(set) var commandSink = IslandCommandSink { _ in }
     /// AirPods connection animation (separate component; the Island only reads its reveal state).
     @ObservationIgnored var airPods: AirPodsConnectionAnimator?
     /// The home surface (pins, suggestions). Set by the composition root.
@@ -49,6 +52,7 @@ final class IslandViewModel {
         self.accessibility = accessibility
         self.commands = commands
         presentation.hoverExpansionEnabled = settings.hoverExpansion
+        commandSink = IslandCommandSink { [weak self] c in self?.commands.perform(c) }
         observeActivities()
     }
 

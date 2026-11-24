@@ -259,6 +259,8 @@ func registerFeatureTests() {
         let svc = "io.github.poshak2004.island.tests"
         try? Keychain.set("secret", account: "t", service: svc)
         if let v = Keychain.get(account: "t", service: svc) { expectEqual(v, "secret") } // may be unavailable in CI sandboxes
+        try? Keychain.set("rotated", account: "t", service: svc) // replaces in place
+        if let v = Keychain.get(account: "t", service: svc) { expectEqual(v, "rotated") }
         try? Keychain.set(nil, account: "t", service: svc)
         expect(Keychain.get(account: "t", service: svc) == nil)
     }

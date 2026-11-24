@@ -11,7 +11,10 @@ final class VLCProvider: MediaProvider {
     private var lifecycle: AppLifecycleObserver?
     private var pollTask: Task<Void, Never>?
     private var last: MediaActivity?
-    private let interval: TimeInterval = 3
+    /// Poll fast only while something plays; paused or idle VLC is checked rarely (each poll spawns osascript).
+    static let playingInterval: TimeInterval = 3
+    static let idleInterval: TimeInterval = 15
+    private var interval: TimeInterval { last?.playbackState == .playing ? Self.playingInterval : Self.idleInterval }
 
     func start() {
         lifecycle = AppLifecycleObserver(bundleID: bundleID, onLaunch: { [weak self] in self?.startPolling() },
@@ -29,7 +32,7 @@ final class VLCProvider: MediaProvider {
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.poll()
-                try? await Task.sleep(nanoseconds: UInt64((self?.interval ?? 3) * 1_000_000_000))
+                try? await Task.sleep(nanoseconds: UInt64((self?.interval ?? Self.idleInterval) * 1_000_000_000))
             }
         }
     }

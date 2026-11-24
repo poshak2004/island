@@ -50,10 +50,11 @@ enum IslandPalette {
     static let timer = Color(red: 1.0, green: 0.62, blue: 0.04)
     static let download = Color(red: 0.25, green: 0.6, blue: 1.0)
     static let recording = Color(red: 1.0, green: 0.42, blue: 0.0)
-    static let batteryGood = Color(red: 0.2, green: 0.85, blue: 0.35)
-    static let batteryLow = Color(red: 1.0, green: 0.27, blue: 0.23)
+    static let batteryGood = Color(nsColor: .systemGreen)
+    static let batteryLow = Color(nsColor: .systemRed)
     static let network = Color(red: 0.35, green: 0.8, blue: 0.85)
-    static let secondaryText = Color.white.opacity(0.62)
+    /// 70 % white: ≥ 4.5:1 over the default glass on a bright backdrop (was 62 %, which fell short).
+    static let secondaryText = Color.white.opacity(0.7)
 
     static func hex(_ hex: String?) -> Color? {
         guard var s = hex?.trimmingCharacters(in: .whitespaces), !s.isEmpty else { return nil }
@@ -118,11 +119,16 @@ struct IslandPillButton: View {
     }
 }
 
+/// A subtle press: 4 % smaller and slightly dimmed on a critically damped spring — frequent
+/// interactions get brief, non-bouncy motion (HIG › Motion). Reduce Motion keeps only the dim.
 struct PressableStyle: ButtonStyle {
+    @Environment(\.islandReduceMotion) private var reduceMotion
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.88 : 1)
-            .animation(.spring(response: 0.22, dampingFraction: 0.7), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1)
+            .opacity(configuration.isPressed ? 0.75 : 1)
+            .animation(.spring(duration: 0.18, bounce: 0), value: configuration.isPressed)
     }
 }
 

@@ -1,5 +1,6 @@
 import AppKit
 import QuartzCore
+import IslandCore
 import SwiftUI
 
 /// The Island's morphing surface, driven entirely by Core Animation.
@@ -32,6 +33,16 @@ final class IslandSurfaceView: NSView {
     private let backgroundMask = CAShapeLayer()
     private let contentMask = CAShapeLayer()
     private(set) var current: Geometry?
+    /// The morph in flight, so a retarget can carry its on-screen speed into the next spring.
+    private var flight: Flight?
+    private var glassHideWork: DispatchWorkItem?
+    private struct Flight {
+        let start: CFTimeInterval
+        let spring: SpringMotion
+        let duration: CFTimeInterval
+        let from: CGSize
+        let to: CGSize
+    }
     var reduceMotion = false
     var speed: Double = 1
 
@@ -105,14 +116,66 @@ final class IslandSurfaceView: NSView {
             glass.style = g.clearGlass ? .clear : .regular
         }
 
-        let animation = motion == .none || previous == nil ? nil : spring(for: motion)
-        animate(backgroundMask, "path", to: outline, with: animation)
-        animate(edgeLayer, "path", to: outline, with: animation)
-        animate(contentMask, "path", to: clip, with: animation)
-        animate(tintLayer, "opacity", to: tint, with: animation)
-        animate(glassView.layer, "opacity", to: glassOpacity, with: animation)
-        animate(edgeLayer, "opacity", to: edgeOpacity, with: animation)
+        let fade = motion == .none || previous == nil ? nil : spring(for: motion)
+        // Reduce Motion: the shape changes in place and only opacity animates (HIG › Motion —
+        // replace zooming and resizing with dissolves), so content never overlaps a growing shell.
+        let morph = reduceMotion ? nil : fade.map { retargeted($0, from: previous, to: g) }
+        if morph == nil { flight = nil }
+        animate(backgroundMask, "path", to: outline, with: morph)
+        animate(edgeLayer, "path", to: outline, with: morph)
+        animate(contentMask, "path", to: clip, with: morph)
+        animate(tintLayer, "opacity", to: tint, with: fade)
+        animate(glassView.layer, "opacity", to: glassOpacity, with: fade)
+        updateGlassHidden(visible: glassOpacity > 0, after: fade?.duration ?? 0)
+        animate(edgeLayer, "opacity", to: edgeOpacity, with: fade)
     }
+
+    /// A copy of `template` whose initial velocity continues the morph already on screen, so
+    /// interrupting an open with a close (or vice versa) never stalls the shape to zero speed.
+    private func retargeted(_ template: CASpringAnimation, from previous: Geometry?, to g: Geometry) -> CASpringAnimation {
+        let now = CACurrentMediaTime()
+        let target = CGSize(width: g.width, height: g.height)
+        var here = previous.map { CGSize(width: $0.width, height: $0.height) } ?? target
+        var speed = CGSize.zero
+        if let f = flight, now - f.start < f.duration {
+            let t = now - f.start
+            let p = f.spring.position(at: t), v = f.spring.velocity(at: t)
+            here = CGSize(width: f.from.width + p * (f.to.width - f.from.width),
+                          height: f.from.height + p * (f.to.height - f.from.height))
+            speed = CGSize(width: v * (f.to.width - f.from.width), height: v * (f.to.height - f.from.height))
+        } else if let f = flight {
+            here = f.to
+        }
+        // Use the axis that travels further in the new morph as the reference distance.
+        let useHeight = abs(target.height - here.height) >= abs(target.width - here.width)
+        let raw = useHeight
+            ? SpringMotion.normalizedVelocity(pointsPerSecond: speed.height, from: here.height, to: target.height)
+            : SpringMotion.normalizedVelocity(pointsPerSecond: speed.width, from: here.width, to: target.width)
+        let v0 = min(Self.maxRetargetVelocity, max(-Self.maxRetargetVelocity, raw))
+        let a = template.copy() as! CASpringAnimation
+        a.initialVelocity = v0
+        a.duration = a.settlingDuration
+        let omega = (a.stiffness / a.mass).squareRoot()
+        let zeta = a.damping / (2 * (a.stiffness * a.mass).squareRoot())
+        flight = Flight(start: now, spring: SpringMotion(omega: omega, dampingRatio: zeta, initialVelocity: v0),
+                        duration: a.duration, from: here, to: target)
+        return a
+    }
+
+    /// A fully transparent blur still costs the window server a backdrop pass every frame, so the
+    /// glass view is hidden once it has faded out (compact, solid modes) and shown before it fades in.
+    private func updateGlassHidden(visible: Bool, after delay: CFTimeInterval) {
+        glassHideWork?.cancel()
+        glassHideWork = nil
+        guard !visible else { glassView.isHidden = false; return }
+        guard delay > 0 else { glassView.isHidden = true; return }
+        let work = DispatchWorkItem { [weak self] in self?.glassView.isHidden = true }
+        glassHideWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    /// Keeps a near-zero remaining distance from turning a modest speed into a violent kick.
+    private static let maxRetargetVelocity: Double = 8
 
     private func shape(_ g: Geometry, ears: Bool) -> IslandShape {
         let s = IslandShape(earRadius: g.earRadius, bottomRadius: g.bottomRadius, width: g.width, height: g.height, offsetX: g.offsetX)
@@ -137,13 +200,14 @@ final class IslandSurfaceView: NSView {
         if reduceMotion {
             a.mass = 1; a.stiffness = 400; a.damping = 40 // critically damped, short
         } else {
-            let s = max(0.5, min(2, speed))
-            // Soft, liquid open with a gentle swell; a smooth, settled close.
-            let (response, damping): (Double, Double) = switch motion {
-            case .open: (0.46 / s, 0.74)
-            case .close: (0.40 / s, 0.9)
-            default: (0.42 / s, 0.84)
+            let s = IslandAnimation.clampedSpeed(speed)
+            // The shared motion tokens: soft open with a gentle swell, a quicker settled close.
+            let spec = switch motion {
+            case .open: IslandAnimation.open
+            case .close: IslandAnimation.close
+            default: IslandAnimation.morph
             }
+            let (response, damping) = (spec.response / s, spec.dampingRatio)
             a.mass = 1
             a.stiffness = pow(2 * .pi / response, 2)
             a.damping = 4 * .pi * damping / response

@@ -1,7 +1,6 @@
 import AppKit
 import IslandCore
 import SwiftUI
-import UniformTypeIdentifiers
 
 // MARK: - Environment
 
@@ -17,158 +16,158 @@ extension EnvironmentValues {
 
 // MARK: - Artwork source
 
-/// Resolves the best available product artwork for an AirPods model, in order:
+/// The product picture for an AirPods model, in order:
 /// 1. a bundled, licensed, transparent render — `Island.app/Contents/Resources/AirPods/<model>.png`;
-/// 2. the model-specific device artwork macOS itself provides for that product (public `UTType` +
-///    `NSWorkspace.icon(for:)` — nothing of Apple's is redistributed);
-/// 3. nil — the card then shows no picture rather than a fake one.
+/// 2. the model's SF Symbol, drawn white with depth — crisp at any size, no tile behind it
+///    (macOS's own device icons sit on a dark tile, which looked like a sticker in the Island).
 @MainActor
 enum AirPodsArtwork {
     private static var cache: [String: NSImage] = [:]
 
-    /// System device types per model, used when the product ID is unknown.
-    private static let typeIdentifiers: [AirPodsModel: [String]] = [
-        .airPodsPro2USBC: ["com.apple.airpods-pro-gen2-2023", "com.apple.airpods-pro-gen2"],
-        .airPodsPro2: ["com.apple.airpods-pro-gen2"],
-        .airPodsPro3: ["com.apple.airpods-pro-2025", "com.apple.airpods-pro-gen2-2023"],
-        .airPodsPro: ["com.apple.airpods-pro", "com.apple.airpods-pro-gen2"],
-        .airPodsMax: ["com.apple.airpods-max", "com.apple.airpods-max-2024"],
-        .airPodsMaxUSBC: ["com.apple.airpods-max-2024", "com.apple.airpods-max"],
-        .airPods4: ["com.apple.airpods-gen4"],
-        .airPods4ANC: ["com.apple.airpods-gen4"],
-        .airPods3: ["com.apple.airpods-gen3"],
-        .airPods2: ["com.apple.airpods-gen2", "com.apple.airpods"],
-        .airPods1: ["com.apple.airpods"],
-        .unknownAirPods: ["com.apple.airpods-gen4", "com.apple.airpods"],
-    ]
-
-    /// True when the image is a bundled transparent render (drawn larger, no tile).
-    static func isBundledRender(model: AirPodsModel) -> Bool { bundled(model) != nil }
-
-    static func image(model: AirPodsModel, productID: Int?) -> NSImage? {
-        let key = "\(model.rawValue)-\(productID ?? -1)"
-        if let cached = cache[key] { return cached }
-        let img = bundled(model) ?? systemArtwork(model: model, productID: productID)
-        if let img { cache[key] = img }
-        return img
-    }
-
-    private static func bundled(_ model: AirPodsModel) -> NSImage? {
+    static func render(model: AirPodsModel) -> NSImage? {
+        if let cached = cache[model.rawValue] { return cached }
         for name in model.artworkNames {
             for ext in ["png", "heic", "tiff"] {
                 if let url = Bundle.main.url(forResource: name, withExtension: ext, subdirectory: "AirPods"),
-                   let img = NSImage(contentsOf: url) { return img }
+                   let img = NSImage(contentsOf: url) {
+                    cache[model.rawValue] = img
+                    return img
+                }
             }
         }
         return nil
     }
 
-    private static func systemArtwork(model: AirPodsModel, productID: Int?) -> NSImage? {
-        var types: [UTType] = []
-        if let pid = productID,
-           let t = UTType(tag: AirPodsModel.deviceModelCode(productID: pid), tagClass: UTTagClass(rawValue: "com.apple.device-model-code"), conformingTo: nil),
-           t.isDeclared {
-            types.append(t)
+    static func symbol(model: AirPodsModel) -> String {
+        switch model {
+        case .airPodsPro, .airPodsPro2, .airPodsPro2USBC, .airPodsPro3: "airpods.pro"
+        case .airPodsMax, .airPodsMaxUSBC: "airpods.max"
+        case .airPods4, .airPods4ANC: "airpods.gen4"
+        case .airPods3: "airpods.gen3"
+        default: "airpods"
         }
-        types += (typeIdentifiers[model] ?? []).compactMap { UTType($0) }.filter(\.isDeclared)
-        guard let type = types.first else { return nil }
-        let icon = NSWorkspace.shared.icon(for: type)
-        icon.size = NSSize(width: 256, height: 256)
-        return icon
     }
 }
 
 // MARK: - Artwork view
 
-/// The product picture and its entrance:
-/// scale 0.65 → 1.03 → 1.0 · opacity 0 → 1 · blur 5 → 0 · a slight rise. Responsive spring, no spin,
-/// no glow. Waits until the Island has opened (`airPodsRevealed`).
+/// The product picture. Its entrance is one brief, precise move — scale 0.8 → 1 with opacity on a
+/// low-bounce spring (HIG › Motion: "Add motion purposefully"; no tilt, glow or overshoot).
+/// Waits until the Island has opened (`airPodsRevealed`).
 struct AirPodsArtworkView: View {
     let model: AirPodsModel
-    let productID: Int?
     var size: CGFloat = 64
     var animatesEntrance = true
     @Environment(\.airPodsRevealed) private var revealed
     @Environment(\.islandReduceMotion) private var reduceMotion
-    @Environment(\.islandNamespace) private var ns
 
-    @State private var scale: CGFloat = 0.65
-    @State private var opacity: Double = 0
-    @State private var blur: CGFloat = 5
-    @State private var lift: CGFloat = 6
-    @State private var started = false
+    @State private var shown = false
+
+    private static let entrance = Animation.spring(duration: 0.4, bounce: 0.15)
+    private static let startScale: CGFloat = 0.8
 
     var body: some View {
-        Group {
-            if let img = AirPodsArtwork.image(model: model, productID: productID) {
-                Image(nsImage: img)
-                    .resizable()
-                    .interpolation(.high)
-                    .aspectRatio(contentMode: .fit)
-            } else {
-                Color.clear
-            }
+        let visible = shown || !animatesEntrance
+        artwork
+            .frame(width: size, height: size)
+            .scaleEffect(visible || reduceMotion ? 1 : Self.startScale)
+            .opacity(visible ? 1 : 0)
+            .accessibilityHidden(true)
+            .onAppear { if revealed { enter() } }
+            .onChange(of: revealed) { _, now in if now { enter() } }
+    }
+
+    @ViewBuilder private var artwork: some View {
+        if let img = AirPodsArtwork.render(model: model) {
+            Image(nsImage: img).resizable().interpolation(.high).aspectRatio(contentMode: .fit)
+        } else {
+            // A symbol drawn as type, so its weight matches the adjacent semibold title (HIG › SF Symbols).
+            Image(systemName: AirPodsArtwork.symbol(model: model))
+                .font(.system(size: size * 0.6, weight: .semibold))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(.white)
         }
-        .frame(width: size, height: size)
-        .scaleEffect(scale)
-        .opacity(opacity)
-        .blur(radius: blur)
-        .offset(y: lift)
-        .islandMatched("airpods-artwork", in: ns)
-        .accessibilityHidden(true)
-        .onAppear { if revealed { enter() } }
-        .onChange(of: revealed) { _, now in if now { enter() } }
     }
 
     private func enter() {
-        guard !started else { return }
-        started = true
-        guard animatesEntrance, !reduceMotion else {
-            scale = 1; opacity = 1; blur = 0; lift = 0
-            return
-        }
-        // Grow slightly past full size on a responsive spring…
-        withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
-            scale = 1.03
-            opacity = 1
-            blur = 0
-            lift = 0
-        }
-        // …then settle to exactly 1.0 without a bounce.
-        withAnimation(.spring(response: 0.3, dampingFraction: 1).delay(0.24)) {
-            scale = 1.0
-        }
+        guard !shown else { return }
+        guard animatesEntrance, !reduceMotion else { shown = true; return }
+        withAnimation(Self.entrance) { shown = true }
     }
 }
 
-// MARK: - Battery view
+// MARK: - Battery ring
 
-/// Battery as the system reports it. Earbuds: the lower bud as a thin ring with its percentage, with
-/// left/right/case in the accessibility label and tooltip. Hidden when nothing is reported — never guessed.
+/// Ring and number drawn from one animated value, so the arc sweeps and the digits count up together.
+private struct BatteryRingFace: View, Animatable {
+    var level: Double
+    let target: Int
+    let diameter: CGFloat
+
+    var animatableData: Double {
+        get { level }
+        set { level = newValue }
+    }
+
+    var body: some View {
+        let line = max(2.5, diameter * 0.1)
+        let tint = target <= 20 ? IslandPalette.batteryLow : IslandPalette.batteryGood
+        ZStack {
+            Circle().stroke(.white.opacity(0.16), lineWidth: line)
+            Circle()
+                .trim(from: 0, to: CGFloat(level) / 100)
+                .stroke(tint, style: StrokeStyle(lineWidth: line, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            Text("\(Int(level.rounded()))")
+                .font(.system(size: diameter * 0.34, weight: .semibold, design: .rounded).monospacedDigit())
+                .foregroundStyle(.white)
+                // Digits appear with the arc, so the sweep never flashes a "0".
+                .opacity(target > 0 && level < 1 ? 0 : 1)
+        }
+        .frame(width: diameter, height: diameter)
+    }
+}
+
+/// Battery as the system reports it: the lower bud as a ring with its percentage (left/right/case in
+/// the accessibility label and tooltip). When it first appears in the revealed banner it fills from
+/// empty — the iPhone's signature sweep. Hidden when nothing is reported — never guessed.
 struct AirPodsBatteryView: View {
     let battery: AirPodsBattery?
     var diameter: CGFloat = 34
+    /// Sweep up from zero on first show (the banner); compact shows the level directly.
+    var sweeps = false
+    var sweepDelay: Double = 0
+    @Environment(\.airPodsRevealed) private var revealed
+    @Environment(\.islandReduceMotion) private var reduceMotion
+    @State private var shownLevel: Double = 0
+    @State private var swept = false
+
+    static let sweep = Animation.timingCurve(0.25, 0.9, 0.3, 1, duration: 0.95)
 
     var body: some View {
         if let battery, let level = battery.headline {
-            ZStack {
-                Circle().stroke(.white.opacity(0.18), lineWidth: 3)
-                Circle()
-                    .trim(from: 0, to: CGFloat(level) / 100)
-                    .stroke(level <= 20 ? IslandPalette.batteryLow : IslandPalette.batteryGood,
-                            style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                Text("\(level)")
-                    .font(.system(size: diameter * 0.32, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(.white)
-            }
-            .frame(width: diameter, height: diameter)
-            .help(detail(battery))
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Battery")
-            .accessibilityValue(detail(battery))
-            .transition(.opacity)
+            BatteryRingFace(level: sweeps ? shownLevel : Double(level), target: level, diameter: diameter)
+                .help(detail(battery))
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Battery")
+                .accessibilityValue(detail(battery))
+                .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.8)))
+                .onAppear { fill(to: level) }
+                .onChange(of: revealed) { _, _ in fill(to: level) }
+                .onChange(of: level) { _, new in fill(to: new) }
         }
+    }
+
+    private func fill(to level: Int) {
+        guard sweeps, revealed else { return }
+        if reduceMotion {
+            shownLevel = Double(level)
+        } else if swept {
+            withAnimation(.smooth(duration: 0.3)) { shownLevel = Double(level) }
+        } else {
+            withAnimation(Self.sweep.delay(sweepDelay)) { shownLevel = Double(level) }
+        }
+        swept = true
     }
 
     private func detail(_ b: AirPodsBattery) -> String {
@@ -178,10 +177,12 @@ struct AirPodsBatteryView: View {
     }
 }
 
-// MARK: - Connection card
+// MARK: - Connection banner
 
-/// Expanded card: artwork · name + status · battery — a short, wide layout so the Island expands
-/// horizontally out of the notch rather than dropping down.
+/// The connection banner: `[ art ]  Name / Connected  ( ring )` in one short, wide row, like the
+/// iPhone's. Art leads and battery trails, as in the compact presentation (HIG › Live Activities:
+/// "Maintain the relative placement of elements"). The ring sweep is the one motion that carries
+/// information — the level — so it's the one that gets time.
 struct AirPodsConnectionView: View {
     let device: DeviceActivity
     let id: String
@@ -189,31 +190,52 @@ struct AirPodsConnectionView: View {
     @Environment(\.islandReduceMotion) private var reduceMotion
 
     private var model: AirPodsModel { device.airPods ?? .unknownAirPods }
+    private var title: String {
+        let name = device.name.trimmingCharacters(in: .whitespaces)
+        return name.isEmpty ? model.displayName : name
+    }
+
+    /// Spoken battery: every level the system reports, so VoiceOver users get left, right and case.
+    private var batterySpoken: String {
+        guard device.connected, let b = device.battery else { return "" }
+        if let s = b.single { return "Battery \(s) percent" }
+        return [b.left.map { "Left \($0) percent" }, b.right.map { "Right \($0) percent" },
+                b.caseLevel.map { "Case \($0) percent" }].compactMap { $0 }.joined(separator: ", ")
+    }
+
+    private enum Layout {
+        static let art: CGFloat = 40
+        static let ring: CGFloat = 40
+        static let row: CGFloat = 40
+    }
 
     var body: some View {
-        HStack(spacing: 14) {
-            AirPodsArtworkView(model: model, productID: device.productID, size: 60)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(model.displayName)
+        HStack(spacing: 12) {
+            AirPodsArtworkView(model: model, size: Layout.art)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(.white)
                     .lineLimit(1)
+                    .truncationMode(.middle)
                 Text(device.connected ? "Connected" : "Disconnected")
-                    .font(.system(size: 12.5, weight: .medium))
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(IslandPalette.secondaryText)
             }
             .opacity(revealed ? 1 : 0)
-            .offset(y: revealed || reduceMotion ? 0 : 3)
-            .animation(.spring(response: 0.36, dampingFraction: 0.9).delay(revealed ? 0.12 : 0), value: revealed)
-            Spacer(minLength: 0)
-            AirPodsBatteryView(battery: device.battery)
+            .blur(radius: revealed || reduceMotion ? 0 : 2)
+            .animation(.smooth(duration: 0.3).delay(revealed ? 0.08 : 0), value: revealed)
+            Spacer(minLength: 8)
+            AirPodsBatteryView(battery: device.connected ? device.battery : nil, diameter: Layout.ring,
+                               sweeps: true, sweepDelay: 0.18)
                 .opacity(revealed ? 1 : 0)
-                .animation(.easeOut(duration: 0.25).delay(revealed ? 0.2 : 0), value: revealed)
-                .animation(.easeOut(duration: 0.3), value: device.battery)
+                .animation(.easeOut(duration: 0.2).delay(revealed ? 0.12 : 0), value: revealed)
         }
-        .padding(.horizontal, 4)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(device.name) \(device.connected ? "connected" : "disconnected")")
+        .frame(height: Layout.row)
+        .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: device.battery)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(title), \(device.connected ? "connected" : "disconnected")")
+        .accessibilityValue(batterySpoken)
     }
 }
 
@@ -224,7 +246,7 @@ struct DeviceCompactLeading: View {
     let id: String
     var body: some View {
         if let model = device.airPods {
-            AirPodsArtworkView(model: model, productID: device.productID, size: 22, animatesEntrance: false)
+            AirPodsArtworkView(model: model, size: 22, animatesEntrance: false)
         } else {
             SimpleCompactLeading(symbol: DevicePresentation.symbol(device), tint: .white, text: device.name, id: id)
         }

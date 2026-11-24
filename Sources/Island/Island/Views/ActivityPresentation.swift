@@ -21,7 +21,7 @@ enum ActivityPresentation {
         case .media: return .media
         case .timer: return .timer
         case .download: return .download
-        case .device: return .device
+        case .device(let d): return d.airPods != nil ? .airPods : .device
         case .recording, .battery, .network, .calendar, .clipboard, .event: return .event
         case .teleprompter: return .teleprompter
         case .shelf: return .shelf
@@ -33,7 +33,7 @@ enum ActivityPresentation {
         case .media(let m): "\(m.playbackState == .playing ? "Playing" : "Paused"): \(m.title)\(m.artist.isEmpty ? "" : " by \(m.artist)"), \(m.sourceName)"
         case .timer(let t): (t.label.isEmpty || t.label == "Timer" ? "Timer" : "Timer \(t.label)") + ", \(DurationFormatter.spoken(t.remaining(at: Date()))) remaining"
         case .download(let d): "Downloading \(d.filename)\(d.fraction.map { ", \(Int($0 * 100)) percent" } ?? "")"
-        case .recording(let r): r.camera ? "Camera in use" : "Microphone in use" + (r.microphone && r.camera ? " and microphone" : "")
+        case .recording(let r): r.camera ? (r.microphone ? "Camera and microphone in use" : "Camera in use") : "Microphone in use"
         case .battery(let b): "Battery \(b.level) percent\(b.isCharging ? ", charging" : "")"
         case .network(let n): n.connected ? "Network connected" : "Network offline"
         case .device(let d): "\(d.name) \(d.connected ? "connected" : "disconnected")"

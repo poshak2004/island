@@ -2,7 +2,8 @@ import Foundation
 import IslandCore
 import Network
 
-/// Connectivity changes via NWPathMonitor. Only transitions are shown (never the initial state).
+/// Connectivity changes via NWPathMonitor. Only going offline is shown, and only once it has lasted
+/// `offlineGrace`; coming back online just clears that card (and still reaches automations via the bus).
 @MainActor
 final class NetworkProvider {
     private let sink: (ActivityUpdate) -> Void
@@ -10,6 +11,7 @@ final class NetworkProvider {
     private var monitor: NWPathMonitor?
     private var lastConnected: Bool?
     private var lastInterface: NetworkActivity.Interface = .none
+    private var pendingOffline: DispatchWorkItem?
 
     init(bus: EventBus, sink: @escaping (ActivityUpdate) -> Void) {
         self.bus = bus
@@ -32,16 +34,33 @@ final class NetworkProvider {
     }
 
     func stop() {
+        pendingOffline?.cancel()
+        pendingOffline = nil
         monitor?.cancel()
         monitor = nil
     }
+
+    /// A drop shorter than this (Wi-Fi roaming, a blip) never interrupts anything.
+    static let offlineGrace: TimeInterval = 3
+    static let offlineCardSeconds: TimeInterval = 5
 
     private func update(connected: Bool, interface: NetworkActivity.Interface) {
         defer { lastConnected = connected; lastInterface = interface }
         guard let was = lastConnected, was != connected else { return }
         bus.publish(.networkChanged(connected: connected))
-        sink(.upsert(Activity(id: "network", kind: .network, priority: connected ? .normal : .high,
-                              content: .network(NetworkActivity(connected: connected, interface: interface)),
-                              expiresAt: Date().addingTimeInterval(connected ? 3 : 5))))
+        pendingOffline?.cancel()
+        pendingOffline = nil
+        guard !connected else {
+            sink(.remove(id: "network"))
+            return
+        }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.lastConnected == false else { return }
+            self.sink(.upsert(Activity(id: "network", kind: .network, priority: .normal,
+                                       content: .network(NetworkActivity(connected: false, interface: interface)),
+                                       expiresAt: Date().addingTimeInterval(Self.offlineCardSeconds))))
+        }
+        pendingOffline = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.offlineGrace, execute: work)
     }
 }

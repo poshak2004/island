@@ -32,12 +32,22 @@ final class DebugRemote {
                     let name = cmd == "airpodsmax" ? "Test AirPods Max" : cmd == "airpodspro" ? "Poshak’s AirPods Pro" : "Test AirPods"
                     let pid = cmd == "airpodsmax" ? 0x201F : cmd == "airpodspro" ? 0x2024 : 0x2019
                     let battery = cmd == "airpodsmax" ? AirPodsBattery(single: 64) : AirPodsBattery(left: 82, right: 79, caseLevel: 61)
-                    env.airPods.lookup = { _ in
+                    // The canned report applies to this one simulated connection only; real AirPods
+                    // connecting afterwards must read the system's battery levels again. A connect
+                    // that would be ignored (a sequence is running) installs nothing.
+                    guard env.airPods.phase == .idle else { break }
+                    let real = env.airPods.lookup
+                    env.airPods.lookup = { [weak airPods = env.airPods] _ in
+                        await MainActor.run { airPods?.lookup = real }
                         try? await Task.sleep(nanoseconds: 300_000_000)
                         return BluetoothDeviceReport(name: name, address: nil, productID: pid, vendorID: 0x004C, connected: true, battery: battery)
                     }
                     env.airPods.deviceConnected(name: name)
                 case "airpodsreal": env.airPods.lookup = { await AirPodsInfoProvider.lookup(name: $0) }
+                case let c where c.hasPrefix("airpodslive:"):
+                    // DEBUG: replay a connection for a real paired device, reading its live system report.
+                    env.airPods.lookup = { await AirPodsInfoProvider.lookup(name: $0) }
+                    env.airPods.deviceConnected(name: String(c.dropFirst("airpodslive:".count)))
                 case "headphones":
                     env.manager.submit(.upsert(Activity(id: "device", kind: .device, priority: .high,
                         content: .device(DeviceActivity(name: "WH-1000XM5", type: .headphones, connected: true)), expiresAt: Date().addingTimeInterval(5))))

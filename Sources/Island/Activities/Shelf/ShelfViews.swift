@@ -114,7 +114,7 @@ private struct ShelfTile: View {
 
     var body: some View {
         VStack(spacing: 4) {
-            Image(nsImage: NSWorkspace.shared.icon(forFile: item.url.path))
+            Image(nsImage: ImageCache.fileIcon(path: item.url.path))
                 .resizable()
                 .frame(width: 38, height: 38)
             Text(item.name)

@@ -45,7 +45,7 @@ Requires macOS 14 Sonoma or later. Works on notched MacBooks, Macs without a not
 | Mic / camera in use | ● 02:31 | CoreAudio / CoreMediaIO "running somewhere" |
 | Battery | ⚡ 84% | IOKit power-source notifications |
 | Devices | AirPods connected | CoreAudio default-output changes |
-| Network | Offline / Online | NWPathMonitor |
+| Network | Offline (only if it lasts a few seconds) | NWPathMonitor |
 | Calendar | next event | EventKit (opt-in) |
 | Clipboard | Copied … | local only (opt-in) |
 | Teleprompter | ≡ ◔ progress | your script (Settings › Teleprompter, search `teleprompter`, or the menu bar) |

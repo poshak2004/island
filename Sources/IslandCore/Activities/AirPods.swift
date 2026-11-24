@@ -71,13 +71,14 @@ public struct AirPodsBattery: Equatable, Sendable, Codable {
     public var isEmpty: Bool { left == nil && right == nil && caseLevel == nil && single == nil }
 
     /// The level to headline: the lower earbud (what runs out first), or the single level.
+    /// The case alone is never headlined — it isn't the level of what's in your ears.
     public var headline: Int? {
         if let single { return single }
         switch (left, right) {
         case let (l?, r?): return min(l, r)
         case let (l?, nil): return l
         case let (nil, r?): return r
-        default: return caseLevel
+        default: return nil
         }
     }
 
@@ -101,6 +102,13 @@ public struct BluetoothDeviceReport: Equatable, Sendable {
         self.vendorID = vendorID
         self.connected = connected
         self.battery = battery
+    }
+
+    /// Battery levels only when the system reports the device as connected right now. A not-connected
+    /// entry carries macOS's last cached levels, which can be hours old — never show those as live.
+    public var liveBattery: AirPodsBattery? {
+        guard connected, battery.headline != nil else { return nil }
+        return battery
     }
 }
 

@@ -262,7 +262,7 @@ struct HomeTile: View {
     @ViewBuilder private var icon: some View {
         switch item {
         case .app(let path, _), .file(let path, _):
-            Image(nsImage: NSWorkspace.shared.icon(forFile: path)).resizable().interpolation(.high)
+            Image(nsImage: ImageCache.fileIcon(path: path)).resizable().interpolation(.high)
         default:
             let tint = HomeTileStyle.tint(item)
             RoundedRectangle(cornerRadius: 11, style: .continuous)
