@@ -74,6 +74,7 @@ private struct GeneralSettings: View {
                 settings.launchAtLogin = loginError == nil ? v : LaunchAtLogin.isEnabled
             }))
             if let loginError { Text(loginError).font(.caption).foregroundStyle(.red) }
+            UpdatesRow(settings: settings, updates: env.updates)
             Picker("Display", selection: $settings.display) {
                 Text("Automatic (notched display first)").tag(DisplaySelection.automatic)
                 Text("Main display").tag(DisplaySelection.main)
@@ -340,5 +341,38 @@ final class SettingsWindowController {
         }
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
+    }
+}
+
+/// Settings › General: automatic checks, Check Now, and where things stand.
+private struct UpdatesRow: View {
+    @Bindable var settings: IslandSettings
+    let updates: UpdateService
+
+    var body: some View {
+        Toggle("Check for updates automatically", isOn: $settings.checkForUpdates)
+        LabeledContent {
+            HStack(spacing: 8) {
+                if let update = updates.available {
+                    Button("Download \(update.version) (build \(update.build))…") { NSWorkspace.shared.open(update.page) }
+                } else {
+                    Button("Check Now") { updates.checkNow() }
+                        .disabled(updates.status == .checking)
+                }
+            }
+        } label: {
+            Text("Updates")
+            Text(statusText).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var statusText: String {
+        if updates.available != nil { return "A newer build is available on GitHub." }
+        switch updates.status {
+        case .idle: return "Asks GitHub once a day. Nothing about you is sent."
+        case .checking: return "Checking…"
+        case .upToDate: return "Island is up to date."
+        case .failed(let message): return message
+        }
     }
 }
