@@ -195,6 +195,27 @@ func registerRegressionTests() {
         expectEqual(seen, ["a", "b", "c", "a", "b", "c"])
     }
 
+    test(S, "selectPrevious walks back through the same order (keyboard ←)") {
+        let mgr = ActivityManager(clock: { Date(timeIntervalSince1970: 0) })
+        mgr.schedulesExpiry = false
+        for (i, id) in ["a", "b", "c"].enumerated() {
+            mgr.submit(.upsert(Activity(id: id, kind: .custom, priority: i == 2 ? .low : .normal, content: .event(SystemEventActivity(symbol: "x", title: id)))))
+        }
+        var seen: [String] = []
+        for _ in 0..<4 { seen.append(mgr.primary!.id); mgr.selectPrevious() }
+        expectEqual(seen, ["a", "c", "b", "a"])
+    }
+
+    test(S, "the open-Island shortcut defaults to ⌃⌥I and persists") {
+        let d = UserDefaults(suiteName: "island.tests.\(UUID().uuidString)")!
+        let s = IslandSettings(defaults: d)
+        expectEqual(s.islandShortcut, .defaultIsland)
+        expectEqual(IslandShortcut.defaultIsland.display, "⌃⌥I")
+        let custom = IslandShortcut(keyCode: 31, carbonModifiers: 0x1800, display: "⌃⌥O")
+        s.islandShortcut = custom
+        expectEqual(IslandSettings(defaults: d).islandShortcut, custom)
+    }
+
     test(S, "manager notifies synchronously on every change") {
         let mgr = ActivityManager()
         mgr.schedulesExpiry = false
@@ -215,6 +236,41 @@ func registerRegressionTests() {
         expectEqual(s.glassIntensity, 0.3)
         expectEqual(s.hoverExpansion, false)
         expect(d.data(forKey: "island.settings.v1.unreadable") != nil, "the original is kept for recovery")
+    }
+
+    test(S, "experimental features are off by default and gate web, AI and automation") {
+        let d = UserDefaults(suiteName: "island.tests.\(UUID().uuidString)")!
+        let s = IslandSettings(defaults: d)
+        expectEqual(s.experimentalFeatures, false)
+        s.webSearchEnabled = true
+        s.aiProvider = .openAI
+        expectEqual(s.effectiveWebSearch, false)
+        expectEqual(s.effectiveAIProvider, .none)
+        expectEqual(s.automationEnabled, false)
+        s.experimentalFeatures = true
+        expectEqual(s.effectiveWebSearch, true)
+        expectEqual(s.effectiveAIProvider, .openAI)
+        expectEqual(s.automationEnabled, true)
+    }
+
+    test(S, "existing AI users keep their features after the experimental switch arrives") {
+        let d = UserDefaults(suiteName: "island.tests.\(UUID().uuidString)")!
+        d.set(#"{"aiProvider": "openAI"}"#.data(using: .utf8), forKey: "island.settings.v1")
+        expectEqual(IslandSettings(defaults: d).experimentalFeatures, true)
+        let fresh = UserDefaults(suiteName: "island.tests.\(UUID().uuidString)")!
+        fresh.set(#"{"glassIntensity": 0.5}"#.data(using: .utf8), forKey: "island.settings.v1")
+        expectEqual(IslandSettings(defaults: fresh).experimentalFeatures, false)
+    }
+
+    test(S, "welcome shows once on a fresh install, never to existing users") {
+        let fresh = UserDefaults(suiteName: "island.tests.\(UUID().uuidString)")!
+        let s = IslandSettings(defaults: fresh)
+        expectEqual(s.hasCompletedWelcome, false)
+        s.hasCompletedWelcome = true
+        expectEqual(IslandSettings(defaults: fresh).hasCompletedWelcome, true)
+        let existing = UserDefaults(suiteName: "island.tests.\(UUID().uuidString)")!
+        existing.set(#"{"glassIntensity": 0.5}"#.data(using: .utf8), forKey: "island.settings.v1")
+        expectEqual(IslandSettings(defaults: existing).hasCompletedWelcome, true)
     }
 
     test(S, "old default hover delay migrates") {

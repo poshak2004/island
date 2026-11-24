@@ -47,12 +47,13 @@ extension View {
 // MARK: Palette
 
 enum IslandPalette {
-    static let timer = Color(red: 1.0, green: 0.62, blue: 0.04)
-    static let download = Color(red: 0.25, green: 0.6, blue: 1.0)
-    static let recording = Color(red: 1.0, green: 0.42, blue: 0.0)
+    // System colours adapt to Increase Contrast; one tint means one thing (HIG › Color).
+    static let timer = Color(nsColor: .systemOrange)
+    static let download = Color(nsColor: .systemBlue)
+    static let recording = Color(nsColor: .systemRed)
     static let batteryGood = Color(nsColor: .systemGreen)
     static let batteryLow = Color(nsColor: .systemRed)
-    static let network = Color(red: 0.35, green: 0.8, blue: 0.85)
+    static let network = Color(nsColor: .systemTeal)
     /// 70 % white: ≥ 4.5:1 over the default glass on a bright backdrop (was 62 %, which fell short).
     static let secondaryText = Color.white.opacity(0.7)
 

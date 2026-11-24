@@ -141,7 +141,7 @@ struct ResearchFailedView: View {
     let message: String
     var body: some View {
         Label(message, systemImage: "exclamationmark.triangle")
-            .font(.system(size: 12.5)).foregroundStyle(.white.opacity(0.7))
+            .font(.system(size: 13)).foregroundStyle(.white.opacity(0.7))
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(20)
     }
@@ -163,7 +163,7 @@ struct ResearchAnswerView: View {
                                     Text(c.title).lineLimit(1)
                                     Text(c.url.host ?? "").foregroundStyle(.white.opacity(0.4)).lineLimit(1)
                                 }
-                                .font(.system(size: 11.5))
+                                .font(.system(size: 12))
                                 .foregroundStyle(.white.opacity(0.75))
                             }
                             .buttonStyle(.plain)

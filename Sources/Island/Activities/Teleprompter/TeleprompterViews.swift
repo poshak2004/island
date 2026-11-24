@@ -2,7 +2,7 @@ import IslandCore
 import SwiftUI
 
 enum TeleprompterStyle {
-    static let tint = Color(red: 0.42, green: 0.86, blue: 0.74)
+    static let tint = Color(nsColor: .systemMint)
     static let symbol = "text.alignleft"
     /// Rows visible in the reading window; the reading line is the second, right under the camera.
     static let visibleRows: CGFloat = 4
@@ -109,7 +109,7 @@ struct TeleprompterExpanded: View {
             .contentTransition(.symbolEffect(.replace))
             IslandIconButton(symbol: "forward.fill", size: 12, label: "Next line") { send(.teleprompter(.skip(lines: 1))) }
             Text(TeleprompterStyle.status(prompter))
-                .font(.system(size: 11.5, weight: .medium).monospacedDigit())
+                .font(.system(size: 12, weight: .medium).monospacedDigit())
                 .foregroundStyle(IslandPalette.secondaryText)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity)

@@ -88,6 +88,14 @@ public final class ActivityManager {
         select(id: visible[(idx + 1) % visible.count].id)
     }
 
+    /// The reverse of `selectNext` (keyboard ←).
+    public func selectPrevious() {
+        guard ordered.count > 1 else { return }
+        let visible = Array(ordered.prefix(maxSecondaries + 1)).sorted { $0.sequence < $1.sequence }
+        guard let current = primary, let idx = visible.firstIndex(where: { $0.id == current.id }) else { return }
+        select(id: visible[(idx - 1 + visible.count) % visible.count].id)
+    }
+
     public func dismiss(id: String) {
         removeInternal(id)
         recompute()

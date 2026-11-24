@@ -1,14 +1,15 @@
 # Island
 
-**The iPhone Dynamic Island, recreated natively for the Mac notch.**
+**A Dynamic Island–style live surface for the Mac notch, built natively.**
 
 Island is one continuous surface that lives in your MacBook's notch. Live activities such as music, timers, downloads, and mic/camera use appear there in a compact form. Hover to expand the same object into an interactive surface, then let it settle back into the notch.
 
 - **Native**: Swift, SwiftUI, and AppKit. No Electron, about 0.1% CPU when idle.
 - **One island**: one primary activity plus up to two minimal bubbles, ordered by priority.
 - **Universal media**: Apple Music, Spotify, VLC, and (opt-in) Safari, Chrome, Brave, and Edge media.
-- **Liquid Glass** on macOS 26+, with full support for Reduce Motion, Reduce Transparency, and Increase Contrast.
-- **Search** (⌥Space): apps, files, actions, web results, and optional AI answers with citations, all inside the island.
+- **Apple's Liquid Glass material** on macOS 26+, with full support for Reduce Motion, Reduce Transparency, and Increase Contrast.
+- **Search** (⌥Space): apps, files and actions, inside the island. Web results and AI answers with citations are available under Settings › Advanced › Experimental features.
+- **Keyboard**: ⌃⌥I opens the island with keyboard focus. Use ←/→ to switch activities, Tab to move between controls, and Escape to close.
 - **Teleprompter**: your script scrolls right under the camera, so you read while looking at the lens. Set a speed or let it follow your voice (on-device). Hidden from screen sharing.
 - **File shelf**: drag files to the notch to park them, drag them back out later, or drop them on AirDrop.
 - **Home**: hover the empty notch for a search bar that does anything, suggestions for right now (join the meeting that's starting, keep the file you just downloaded), and your own pinned apps, Shortcuts, websites, files and Island features. The house button reaches it even while music plays.
@@ -71,3 +72,7 @@ Only the Xcode Command Line Tools are needed. See [DEVELOPMENT.md](DEVELOPMENT.m
 ## License
 
 [MIT](LICENSE)
+
+---
+
+Island is an independent open-source project and is not affiliated with, endorsed by, or sponsored by Apple Inc. Apple, Mac, MacBook, iPhone, AirPods, Dynamic Island and Liquid Glass are trademarks of Apple Inc.

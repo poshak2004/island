@@ -43,6 +43,12 @@ final class DebugRemote {
                         return BluetoothDeviceReport(name: name, address: nil, productID: pid, vendorID: 0x004C, connected: true, battery: battery)
                     }
                     env.airPods.deviceConnected(name: name)
+                case "welcome":
+                    // DEBUG: replay the first-run welcome (Done/Escape marks it complete again).
+                    env.settings.hasCompletedWelcome = false
+                    env.island.presentWelcomeIfNeeded()
+                case "welcomedone": env.island.completeWelcome()
+                case "keyboard": env.island.toggleWithKeyboard()
                 case "airpodsreal": env.airPods.lookup = { await AirPodsInfoProvider.lookup(name: $0) }
                 case let c where c.hasPrefix("airpodslive:"):
                     // DEBUG: replay a connection for a real paired device, reading its live system report.

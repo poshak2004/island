@@ -10,6 +10,7 @@ final class FeatureHub {
     let debug = DebugWindows()
     let apps = ApplicationSearchProvider()
     private(set) var hotKey: HotKey?
+    private(set) var islandHotKey: HotKey?
     private var automationState: [UUID: Bool] = [:]
     var rules: [AutomationRule] = AutomationStore.load() { didSet { AutomationStore.save(rules) } }
 
@@ -21,6 +22,7 @@ final class FeatureHub {
         env.commands.openSettings = { [weak self] in self.map { $0.settingsWindow.show(env: $0.env) } }
         env.commands.action = { [weak self] action, origin in self?.run(action, origin: origin) }
         hotKey = HotKey { [weak self] in self?.env.commands.perform(.ui(.toggleSearch)) }
+        islandHotKey = HotKey { [weak self] in self?.env.island.toggleWithKeyboard() }
         env.bus.subscribe { [weak self] event in self?.automate(event) }
         configure()
     }
@@ -29,19 +31,20 @@ final class FeatureHub {
     func configure() {
         let s = env.settings
         hotKey?.register(s.searchEnabled && s.islandEnabled ? s.searchShortcut : nil)
+        islandHotKey?.register(s.islandEnabled ? s.islandShortcut : nil)
         debug.setOverlay(s.performanceOverlay, env: env)
 
         var providers: [any SearchProvider] = [ActionSearchProvider(webSearchURL: Self.browserSearchURL), apps]
         if env.shortcuts.isAvailable { providers.append(ShortcutsSearchProvider(catalog: env.shortcuts)) }
         if s.fileSearchEnabled { providers.append(FileSearchProvider()) }
-        if s.webSearchEnabled {
+        if s.effectiveWebSearch {
             if s.webSearchProviders.contains("wikipedia") { providers.append(WikipediaSearchProvider()) }
             if s.webSearchProviders.contains("duckduckgo") { providers.append(DuckDuckGoProvider()) }
             if s.webSearchProviders.contains("brave") { providers.append(BraveSearchProvider(apiKey: { Keychain.get(account: "brave-search") })) }
         }
         env.search.engine = SearchEngine(providers: providers)
 
-        let kind = s.aiProvider
+        let kind = s.effectiveAIProvider
         if let ai = AIProviderFactory.make(kind: kind, model: s.aiModel, apiKey: { Keychain.get(account: kind.rawValue) }) {
             let webProviders = providers.filter { $0.category == .web }
             let research = ResearchEngine(ai: ai, search: { q in await Self.collectWeb(q, providers: webProviders) })
@@ -96,6 +99,7 @@ final class FeatureHub {
     // MARK: Automation
 
     private func automate(_ event: IslandEvent) {
+        guard env.settings.automationEnabled else { return }
         let ctx = AutomationContext(activeKinds: Set(env.manager.ordered.map(\.kind)))
         for action in AutomationEngine.evaluate(rules, event: event, context: ctx, state: &automationState) {
             switch action {

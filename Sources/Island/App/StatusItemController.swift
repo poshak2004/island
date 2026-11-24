@@ -36,7 +36,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         }
         menu.addItem(.separator())
         add("Settings…", #selector(openSettings), key: ",")
+        #if DEBUG
         add("Debug Panel", #selector(openDebug), key: "d")
+        #endif
         menu.addItem(.separator())
         add("Quit Island", #selector(quit), key: "q")
     }

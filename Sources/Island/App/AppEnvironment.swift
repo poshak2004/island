@@ -80,6 +80,12 @@ final class AppEnvironment {
 
     func start(providers: Bool = true) {
         if settings.islandEnabled { window.show() }
+        if providers, settings.islandEnabled, !settings.hasCompletedWelcome {
+            // A beat after launch, so the window and notch geometry are settled first.
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.welcomeDelay) { [weak self] in
+                self?.island.presentWelcomeIfNeeded()
+            }
+        }
         providersRunning = providers
         syncProviders()
         features.start()
@@ -169,10 +175,12 @@ final class AppEnvironment {
             _ = settings.islandEnabled
             _ = settings.searchEnabled
             _ = settings.searchShortcut
+            _ = settings.islandShortcut
             _ = settings.fileSearchEnabled
             _ = settings.webSearchEnabled
             _ = settings.webSearchProviders
             _ = settings.aiProvider
+            _ = settings.experimentalFeatures
             _ = settings.aiModel
             _ = settings.performanceOverlay
             _ = settings.teleprompterHideFromCapture
@@ -260,6 +268,7 @@ extension AppEnvironment {
 extension AppEnvironment {
     /// How far around the open Island a file drag still counts as "heading for the notch".
     static let shelfDragMargin: CGFloat = 60
+    static let welcomeDelay: TimeInterval = 1.0
     static let shelfConfirmSeconds: TimeInterval = 2.5
 
     fileprivate func wireShelf() {
