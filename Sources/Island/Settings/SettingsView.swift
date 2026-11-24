@@ -5,7 +5,13 @@ import SwiftUI
 struct SettingsView: View {
     @Bindable var settings: IslandSettings
     let env: AppEnvironment
-    @State private var pane: Pane = .general
+    @State private var pane: Pane
+
+    init(settings: IslandSettings, env: AppEnvironment, initialPane: Pane = .general) {
+        self.settings = settings
+        self.env = env
+        _pane = State(initialValue: initialPane)
+    }
 
     enum Pane: String, CaseIterable, Identifiable {
         case general = "General", home = "Home", appearance = "Appearance", behavior = "Behavior", activities = "Activities", teleprompter = "Teleprompter"
@@ -194,7 +200,7 @@ private struct SearchSettings: View {
                     providerToggle("duckduckgo", "DuckDuckGo Instant Answers (free, no key)")
                     providerToggle("brave", "Brave Search API (needs key)")
                     if settings.webSearchProviders.contains("brave") {
-                        SecureField("Brave Search API key", text: $braveKey)
+                        SecureField("Brave Search API key", text: $braveKey, prompt: Text("Paste your key"))
                             .onSubmit { try? Keychain.set(braveKey, account: "brave-search") }
                             .onDisappear { try? Keychain.set(braveKey, account: "brave-search") }
                     }
@@ -223,7 +229,7 @@ private struct AISettings: View {
             if settings.aiProvider != .none {
                 TextField("Model", text: $settings.aiModel, prompt: Text(AIProviderFactory.defaultModel(settings.aiProvider)))
                 if settings.aiProvider != .ollama {
-                    SecureField("API key (stored in Keychain)", text: $key)
+                    SecureField("API key (stored in Keychain)", text: $key, prompt: Text("Paste your key"))
                         .onAppear { key = Keychain.get(account: settings.aiProvider.rawValue) ?? "" }
                         .onChange(of: settings.aiProvider) { _, p in key = Keychain.get(account: p.rawValue) ?? "" }
                         .onSubmit { save() }

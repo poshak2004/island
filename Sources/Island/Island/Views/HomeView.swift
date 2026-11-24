@@ -237,6 +237,8 @@ enum HomeTileStyle {
 struct HomeTile: View {
     let item: HomeItem
     var checked = false
+    /// Off where the title already sits beside the icon (Settings › Home), so it isn't said twice.
+    var showsTitle = true
     let action: () -> Void
     @State private var hovering = false
 
@@ -254,14 +256,16 @@ struct HomeTile: View {
                                 .offset(x: 5, y: -5)
                         }
                     }
-                Text(item.title)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-                    .truncationMode(.tail)
+                if showsTitle {
+                    Text(item.title)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                        .truncationMode(.tail)
+                }
             }
-            .frame(width: HomeTileStyle.width)
+            .frame(width: showsTitle ? HomeTileStyle.width : HomeTileStyle.icon)
             .padding(.vertical, 4)
             .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.white.opacity(hovering ? 0.08 : 0)))
             .contentShape(Rectangle())

@@ -23,7 +23,7 @@ struct HomeSettings: View {
                 List {
                     ForEach(settings.homePins) { item in
                         HStack(spacing: 10) {
-                            HomeTile(item: item) {}
+                            HomeTile(item: item, showsTitle: false) {}
                                 .scaleEffect(0.6)
                                 .frame(width: 38, height: 38)
                                 .allowsHitTesting(false)
