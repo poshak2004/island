@@ -1,6 +1,7 @@
 #if DEBUG
 import AppKit
 import IslandCore
+import SwiftUI
 
 /// DEBUG builds only: lets scripts drive the Island for visual QA, e.g.
 /// `scripts/island-debug.sh expand`. Not compiled into release builds.
@@ -60,6 +61,7 @@ final class DebugRemote {
                     env.bus.publish(.deviceConnected(name: "WH-1000XM5"))
                 case "dump": DebugRemote.dump(env)
                 case "settings": env.commands.perform(.openSettings)
+                case "snapsettings": SettingsSnapshotter.renderAll(env: env)
                 case "debugpanel": env.showDebugPanel()
                 case "quicktimer": env.timers.handle(.start(duration: 3, label: "Quick"))
                 case "prompter":
@@ -137,4 +139,46 @@ extension DebugRemote {
         try? lines.joined(separator: "\n").write(to: url, atomically: true, encoding: .utf8)
     }
 }
+/// DEBUG: draws every Settings pane offscreen to PNGs (no screen-recording permission needed), with
+/// Experimental off and on, against a throwaway settings store — the user's settings are untouched.
+@MainActor
+enum SettingsSnapshotter {
+    static let directory = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Caches/island-qa/settings", isDirectory: true)
+
+    static func renderAll(env: AppEnvironment) {
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        for experimental in [false, true] {
+            let suite = UserDefaults(suiteName: "island.snapshots.\(UUID().uuidString)")!
+            let scratch = IslandSettings(defaults: suite)
+            scratch.experimentalFeatures = experimental
+            scratch.aiProvider = experimental ? .anthropic : .none
+            for pane in SettingsView.Pane.allCases {
+                let view = SettingsView(settings: scratch, env: env, initialPane: pane)
+                    .environment(\.colorScheme, .dark)
+                write(view, name: "\(experimental ? "exp-on" : "exp-off")-\(pane.rawValue.lowercased())")
+            }
+        }
+        NSLog("Island: settings snapshots in %@", directory.path)
+    }
+
+    private static func write(_ view: some View, name: String) {
+        let size = NSSize(width: 760, height: 560)
+        let host = NSHostingView(rootView: view)
+        host.frame = NSRect(origin: .zero, size: size)
+        let window = NSWindow(contentRect: host.frame, styleMask: [.titled], backing: .buffered, defer: false)
+        window.appearance = NSAppearance(named: .darkAqua)
+        window.contentView = host
+        host.layoutSubtreeIfNeeded()
+        // Let SwiftUI finish a layout pass before drawing.
+        RunLoop.main.run(until: Date().addingTimeInterval(0.15))
+        host.layoutSubtreeIfNeeded()
+        guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { return }
+        host.cacheDisplay(in: host.bounds, to: rep)
+        let data = rep.representation(using: .png, properties: [:])
+        try? data?.write(to: directory.appendingPathComponent("\(name).png"))
+        window.contentView = nil
+    }
+}
+
 #endif
