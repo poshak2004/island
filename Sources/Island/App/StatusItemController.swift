@@ -34,7 +34,11 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             let running = env.teleprompter.isActive
             add(running ? "Close Teleprompter" : "Start Teleprompter", #selector(toggleTeleprompter), key: "")
         }
+        env.updates.checkIfDue() // at most once a day
         menu.addItem(.separator())
+        if let update = env.updates.available {
+            add("Update Available — \(update.version) (build \(update.build))…", #selector(openUpdate), key: "")
+        }
         add("Settings…", #selector(openSettings), key: ",")
         #if DEBUG
         add("Debug Panel", #selector(openDebug), key: "d")
@@ -58,6 +62,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         if env.teleprompter.isActive { env.teleprompter.stop() } else { env.startTeleprompterFromSettings() }
     }
     @objc private func openSettings() { env.commands.perform(.openSettings) }
+    @objc private func openUpdate() {
+        if let page = env.updates.available?.page { NSWorkspace.shared.open(page) }
+    }
     @objc private func openDebug() { env.showDebugPanel() }
     @objc private func quit() { NSApp.terminate(nil) }
 }

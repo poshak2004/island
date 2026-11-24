@@ -53,7 +53,7 @@ jobs:
           MD
           )
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" dist/Island.zip dist/Island.dmg dist/SHA256SUMS.txt --clobber
+            gh release upload "$TAG" dist/Island.zip dist/Island.dmg dist/SHA256SUMS.txt dist/version.json --clobber
           else
-            gh release create "$TAG" dist/Island.zip dist/Island.dmg dist/SHA256SUMS.txt --title "Island $TAG" --notes "$NOTES"
+            gh release create "$TAG" dist/Island.zip dist/Island.dmg dist/SHA256SUMS.txt dist/version.json --title "Island $TAG" --notes "$NOTES"
           fi

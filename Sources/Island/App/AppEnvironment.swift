@@ -15,6 +15,7 @@ final class AppEnvironment {
     let window: IslandWindowController
     let timers: TimerService
     let teleprompter: TeleprompterService
+    let updates: UpdateService
     let shelf: ShelfService
     let fileDrags = FileDragWatcher()
     let shortcuts = ShortcutsCatalog()
@@ -40,6 +41,7 @@ final class AppEnvironment {
         let submit: (ActivityUpdate) -> Void = { [manager] in manager.submit($0) }
         timers = TimerService(bus: bus, sink: submit)
         teleprompter = TeleprompterService(settings: settings, sink: submit)
+        updates = UpdateService(settings: settings)
         shelf = ShelfService(sink: submit)
         home = HomeModel(settings: settings, shortcuts: shortcuts)
         media = MediaService(bus: bus, sink: submit)
@@ -80,6 +82,11 @@ final class AppEnvironment {
 
     func start(providers: Bool = true) {
         if settings.islandEnabled { window.show() }
+        if providers {
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.updateCheckDelay) { [weak self] in
+                self?.updates.checkIfDue()
+            }
+        }
         if providers, settings.islandEnabled, !settings.hasCompletedWelcome {
             // A beat after launch, so the window and notch geometry are settled first.
             DispatchQueue.main.asyncAfter(deadline: .now() + Self.welcomeDelay) { [weak self] in
@@ -269,6 +276,8 @@ extension AppEnvironment {
     /// How far around the open Island a file drag still counts as "heading for the notch".
     static let shelfDragMargin: CGFloat = 60
     static let welcomeDelay: TimeInterval = 1.0
+    /// Launch is busy enough; the daily update check waits a little.
+    static let updateCheckDelay: TimeInterval = 15
     static let shelfConfirmSeconds: TimeInterval = 2.5
 
     fileprivate func wireShelf() {
