@@ -16,6 +16,8 @@ public struct IslandShortcut: Codable, Equatable, Sendable {
 
     /// ⌥Space
     public static let defaultSearch = IslandShortcut(keyCode: 49, carbonModifiers: 0x0800, display: "⌥Space")
+    /// ⌃⌥I — opens the Island with keyboard focus. (⌃⌥Space is taken by macOS input-source switching.)
+    public static let defaultIsland = IslandShortcut(keyCode: 34, carbonModifiers: 0x1800, display: "⌃⌥I")
 }
 
 public enum AIProviderKind: String, Codable, CaseIterable, Sendable {
@@ -65,11 +67,21 @@ public final class IslandSettings {
     // Search
     public var searchEnabled = true { didSet { save() } }
     public var searchShortcut: IslandShortcut = .defaultSearch { didSet { save() } }
+    public var islandShortcut: IslandShortcut = .defaultIsland { didSet { save() } }
     public var webSearchEnabled = true { didSet { save() } }
     public var webSearchProviders: Set<String> = ["wikipedia", "duckduckgo"] { didSet { save() } }
     public var fileSearchEnabled = true { didSet { save() } }
     // AI
     public var aiProvider: AIProviderKind = .none { didSet { save() } }
+    /// Web results, AI answers and automation rules. Off by default: the Island's core is live
+    /// activities; these stay available for people who opt in.
+    public var experimentalFeatures = false { didSet { save() } }
+    /// The one-time welcome in the Island (hover, search, shelf). Existing installs skip it.
+    public var hasCompletedWelcome = false { didSet { save() } }
+
+    public var effectiveWebSearch: Bool { experimentalFeatures && webSearchEnabled }
+    public var effectiveAIProvider: AIProviderKind { experimentalFeatures ? aiProvider : .none }
+    public var automationEnabled: Bool { experimentalFeatures }
     public var aiModel: String = "" { didSet { save() } }
     // Accessibility (forced overrides on top of the system settings)
     public var forceReduceMotion = false { didSet { save() } }
@@ -134,10 +146,13 @@ public final class IslandSettings {
         var browserMediaEnabled: Bool?
         var searchEnabled: Bool?
         var searchShortcut: IslandShortcut?
+        var islandShortcut: IslandShortcut?
         var webSearchEnabled: Bool?
         var webSearchProviders: [String]?
         var fileSearchEnabled: Bool?
         var aiProvider: AIProviderKind?
+        var experimentalFeatures: Bool?
+        var hasCompletedWelcome: Bool?
         var aiModel: String?
         var forceReduceMotion: Bool?
         var forceReduceTransparency: Bool?
@@ -165,9 +180,9 @@ public final class IslandSettings {
                  compactShowsTitle: compactShowsTitle, collapseDelay: collapseDelay, hoverExpansion: hoverExpansion, hoverDelay: hoverDelay,
                  autoCollapse: autoCollapse, autoCollapseDelay: autoCollapseDelay, animationSpeed: animationSpeed,
                  hapticFeedback: hapticFeedback, enabledKinds: enabledKinds.map { $0 }.sorted { $0.rawValue < $1.rawValue },
-                 browserMediaEnabled: browserMediaEnabled, searchEnabled: searchEnabled, searchShortcut: searchShortcut,
+                 browserMediaEnabled: browserMediaEnabled, searchEnabled: searchEnabled, searchShortcut: searchShortcut, islandShortcut: islandShortcut,
                  webSearchEnabled: webSearchEnabled, webSearchProviders: webSearchProviders.sorted(),
-                 fileSearchEnabled: fileSearchEnabled, aiProvider: aiProvider, aiModel: aiModel,
+                 fileSearchEnabled: fileSearchEnabled, aiProvider: aiProvider, experimentalFeatures: experimentalFeatures, hasCompletedWelcome: hasCompletedWelcome, aiModel: aiModel,
                  forceReduceMotion: forceReduceMotion, forceReduceTransparency: forceReduceTransparency,
                  forceHighContrast: forceHighContrast, debugMode: debugMode, performanceOverlay: performanceOverlay,
                  kindsRevision: Self.kindsRevision, teleprompterScript: teleprompterScript,
@@ -202,10 +217,14 @@ public final class IslandSettings {
         if let v = s.browserMediaEnabled { browserMediaEnabled = v }
         if let v = s.searchEnabled { searchEnabled = v }
         if let v = s.searchShortcut { searchShortcut = v }
+        if let v = s.islandShortcut { islandShortcut = v }
         if let v = s.webSearchEnabled { webSearchEnabled = v }
         if let v = s.webSearchProviders { webSearchProviders = Set(v) }
         if let v = s.fileSearchEnabled { fileSearchEnabled = v }
         if let v = s.aiProvider { aiProvider = v }
+        // Installs from before the switch existed: someone who set up AI keeps it.
+        if let v = s.hasCompletedWelcome { hasCompletedWelcome = v }
+        if let v = s.experimentalFeatures { experimentalFeatures = v } else if let p = s.aiProvider, p != .none { experimentalFeatures = true }
         if let v = s.aiModel { aiModel = v }
         if let v = s.forceReduceMotion { forceReduceMotion = v }
         if let v = s.forceReduceTransparency { forceReduceTransparency = v }
@@ -229,6 +248,8 @@ public final class IslandSettings {
         loading = true
         defer { loading = false }
         guard let data = defaults.data(forKey: Self.storageKey) else { return }
+        // Saved settings mean this isn't a first run: existing users never see the welcome.
+        hasCompletedWelcome = true
         if let snap = try? JSONDecoder().decode(Snapshot.self, from: data) {
             apply(snap)
             return
@@ -239,14 +260,16 @@ public final class IslandSettings {
         for snap in Self.recoverFields(from: data) { apply(snap) }
     }
 
-    /// Decodes each top-level field on its own; fields that fail are dropped. `kindsRevision` travels
-    /// with `enabledKinds`, since the migration reads both together.
+    /// Decodes each top-level field on its own; fields that fail are dropped. Fields a migration reads
+    /// together travel together: `kindsRevision` with `enabledKinds`, `experimentalFeatures` with `aiProvider`.
     static func recoverFields(from data: Data) -> [Snapshot] {
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [] }
         let revision = object["kindsRevision"]
+        let experimental = object["experimentalFeatures"]
         return object.compactMap { key, value in
             var single: [String: Any] = [key: value]
             if key == "enabledKinds", let revision { single["kindsRevision"] = revision }
+            if key == "aiProvider", let experimental { single["experimentalFeatures"] = experimental }
             guard let json = try? JSONSerialization.data(withJSONObject: single) else { return nil }
             return try? JSONDecoder().decode(Snapshot.self, from: json)
         }

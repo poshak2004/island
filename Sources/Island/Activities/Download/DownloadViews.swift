@@ -22,7 +22,7 @@ struct DownloadCompactTrailing: View {
     let download: DownloadActivity
     var body: some View {
         Text(text)
-            .font(.system(size: 12.5, weight: .semibold).monospacedDigit())
+            .font(.system(size: 13, weight: .semibold).monospacedDigit())
             .foregroundStyle(download.state == .completed ? IslandPalette.batteryGood : IslandPalette.download)
             .contentTransition(.numericText())
     }
@@ -50,7 +50,7 @@ struct DownloadExpanded: View {
                     .frame(width: 34, height: 34)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(download.filename).font(.system(size: 14, weight: .semibold)).foregroundStyle(.white).lineLimit(1).truncationMode(.middle)
-                    Text(detail).font(.system(size: 11.5).monospacedDigit()).foregroundStyle(IslandPalette.secondaryText).lineLimit(1)
+                    Text(detail).font(.system(size: 12).monospacedDigit()).foregroundStyle(IslandPalette.secondaryText).lineLimit(1)
                 }
                 Spacer(minLength: 0)
                 actions

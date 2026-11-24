@@ -172,6 +172,8 @@ final class IslandWindowController {
     }
 
     static let proximityMargin: CGFloat = 120
+    static let leftArrowKey: UInt16 = 123
+    static let rightArrowKey: UInt16 = 124
     /// Long enough for the slowest open/close spring to settle.
     static let settleRecheckDelay: TimeInterval = 0.6
 
@@ -217,6 +219,13 @@ final class IslandWindowController {
             model.escape()
             return true
         }
+        if model.mode == .expanded, model.keyboardFocused, e.modifierFlags.intersection([.command, .option, .control]).isEmpty {
+            switch e.keyCode {
+            case Self.leftArrowKey: model.stepActivity(forward: false); return true
+            case Self.rightArrowKey: model.stepActivity(forward: true); return true
+            default: break
+            }
+        }
         return model.mode == .search ? search.handleKey(e) : false
     }
 
@@ -249,6 +258,11 @@ final class IslandWindowController {
             panel.allowsKey = true
             panel.makeKeyAndOrderFront(nil)
             search.activate()
+        } else if mode == .expanded, model.keyboardFocused {
+            // Opened from the keyboard: take key focus so controls are reachable (hover never steals it).
+            search.deactivate()
+            panel.allowsKey = true
+            panel.makeKeyAndOrderFront(nil)
         } else {
             if panel.isKeyWindow { panel.resignKey() }
             panel.allowsKey = false

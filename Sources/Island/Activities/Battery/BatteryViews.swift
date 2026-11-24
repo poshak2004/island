@@ -41,7 +41,7 @@ struct BatteryCompactTrailing: View {
     let battery: BatteryActivity
     var body: some View {
         Text("\(battery.level)%")
-            .font(.system(size: 12.5, weight: .semibold).monospacedDigit())
+            .font(.system(size: 13, weight: .semibold).monospacedDigit())
             .foregroundStyle(BatteryPresentation.tint(battery))
     }
 }
@@ -63,7 +63,7 @@ struct BatteryExpanded: View {
                     .frame(width: 160)
             }
             Spacer()
-            Text("\(battery.level)%").font(.system(size: 26, weight: .light).monospacedDigit()).foregroundStyle(BatteryPresentation.tint(battery))
+            Text("\(battery.level)%").font(.system(size: 26, weight: .semibold, design: .rounded).monospacedDigit()).foregroundStyle(BatteryPresentation.tint(battery))
             IslandIconButton(symbol: "xmark", size: 11, label: "Dismiss") { send(.ui(.dismiss(activityID: id))) }
         }
         .accessibilityElement(children: .combine)

@@ -4,7 +4,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 enum ShelfStyle {
-    static let tint = Color(red: 0.55, green: 0.72, blue: 1.0)
+    static let tint = Color(nsColor: .systemCyan)
     static let symbol = "tray.full.fill"
     static let tileWidth: CGFloat = 66
 
@@ -65,7 +65,7 @@ struct ShelfExpanded: View {
                 }
                 HStack(spacing: 8) {
                     Text("\(ShelfStyle.label(shelf)) · drag out to use")
-                        .font(.system(size: 11.5, weight: .medium))
+                        .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(IslandPalette.secondaryText)
                     Spacer(minLength: 0)
                     IslandPillButton(title: "AirDrop All", symbol: "dot.radiowaves.left.and.right", tint: ShelfStyle.tint) {
@@ -118,7 +118,7 @@ private struct ShelfTile: View {
                 .resizable()
                 .frame(width: 38, height: 38)
             Text(item.name)
-                .font(.system(size: 10.5, weight: .medium))
+                .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.white)
                 .lineLimit(1)
                 .truncationMode(.middle)

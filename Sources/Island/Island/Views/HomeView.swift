@@ -11,6 +11,14 @@ struct HomeView: View {
     @State private var adding = false
 
     var body: some View {
+        if !home.settings.hasCompletedWelcome {
+            WelcomeView(settings: home.settings)
+        } else {
+            content
+        }
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 12) {
             searchBar
             if adding {
@@ -31,12 +39,17 @@ struct HomeView: View {
 
     // MARK: Search
 
+    /// Only promise "ask" when AI answers are actually on.
+    private var searchPrompt: String {
+        home.settings.effectiveAIProvider != .none ? "Search, open, or ask anything" : "Search apps, files, and actions"
+    }
+
     private var searchBar: some View {
         HStack(spacing: 8) {
             Button { send(.ui(.toggleSearch)) } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass").font(.system(size: 13, weight: .semibold))
-                    Text("Search, open, or ask anything").font(.system(size: 13, weight: .medium))
+                    Text(searchPrompt).font(.system(size: 13, weight: .medium))
                     Spacer(minLength: 4)
                     Text(home.settings.searchShortcut.display)
                         .font(.system(size: 11, weight: .semibold).monospaced())
@@ -51,7 +64,7 @@ struct HomeView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(PressableStyle())
-            .accessibilityLabel("Search, open, or ask anything")
+            .accessibilityLabel(searchPrompt)
             .accessibilityHint("Shortcut \(home.settings.searchShortcut.display)")
             IslandIconButton(symbol: "gearshape.fill", size: 13, label: "Settings") { send(.openSettings) }
         }
@@ -214,8 +227,8 @@ enum HomeTileStyle {
         case .feature(.shelf): ShelfStyle.tint
         case .feature(.timer): IslandPalette.timer
         case .feature(.search): .white
-        case .shortcut: Color(red: 0.98, green: 0.45, blue: 0.62)
-        case .website: Color(red: 0.4, green: 0.72, blue: 1.0)
+        case .shortcut: Color(nsColor: .systemPink)
+        case .website: Color(nsColor: .systemBlue)
         case .app, .file: .white
         }
     }

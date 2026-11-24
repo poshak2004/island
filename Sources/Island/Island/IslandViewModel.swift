@@ -21,6 +21,9 @@ final class IslandViewModel {
     @ObservationIgnored var home: HomeModel?
     /// Home is open on top of live activities (via the house tab), until the Island closes.
     private(set) var showsHome = false
+    /// Opened from the keyboard (the Island shortcut): it takes key focus so Tab, Space and the arrow
+    /// keys work, and closes with Escape, the shortcut again, or a click outside.
+    private(set) var keyboardFocused = false
 
     private(set) var presentation = IslandPresentation()
     private(set) var geometry: NotchGeometry?
@@ -148,7 +151,47 @@ final class IslandViewModel {
 
     func click() { apply(.click) }
     func clickOutside() { apply(.clickOutside) }
-    func escape() { apply(.escape) }
+    func escape() {
+        if welcomePending { return completeWelcome() }
+        apply(.escape)
+    }
+
+    /// The Island shortcut: open with keyboard focus, or close if it's already open that way.
+    func toggleWithKeyboard() {
+        if keyboardFocused, mode == .expanded {
+            keyboardFocused = false
+            collapse()
+            return
+        }
+        keyboardFocused = true
+        if mode == .expanded {
+            onModeChange?(mode) // already open (hover): take focus now
+        } else {
+            expand()
+        }
+    }
+
+    /// ← / → while the Island has keyboard focus: step through the live activities.
+    func stepActivity(forward: Bool) {
+        guard manager.ordered.count > 0 else { return }
+        if showsHome { showHome(false); return }
+        forward ? manager.selectNext() : manager.selectPrevious()
+    }
+
+    /// The first-run welcome is on screen: it stays open until Done (or Escape).
+    var welcomePending: Bool { !settings.hasCompletedWelcome && isShowingHome }
+
+    func completeWelcome() {
+        settings.hasCompletedWelcome = true
+        collapse()
+    }
+
+    /// First launch: open on Home so the welcome is the first thing people see.
+    func presentWelcomeIfNeeded() {
+        guard !settings.hasCompletedWelcome else { return }
+        showHome(true)
+        expand()
+    }
     func toggleSearch() { apply(.toggleSearch) }
     func expand() { apply(.expand) }
     func collapse() { apply(.collapse) }
@@ -168,8 +211,11 @@ final class IslandViewModel {
     func apply(_ input: IslandInput) {
         var next = presentation
         next.hoverExpansionEnabled = settings.hoverExpansion
-        next.pinsExpansion = primaryPinsExpansion
+        // Keyboard-opened needs no pin: an explicit expand is never closed by the pointer leaving,
+        // while Escape, the shortcut and clicking outside still close it.
+        next.pinsExpansion = primaryPinsExpansion || welcomePending
         next.handle(input)
+        if !next.isExpanded { keyboardFocused = false }
         guard next != presentation else { return }
         let modeChanged = next.mode != presentation.mode
         note("\(input) → \(next.mode.rawValue)\(modeChanged ? "" : " (same)")")

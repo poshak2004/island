@@ -120,7 +120,7 @@ struct MediaExpanded: View {
                                 .islandMatched("media-title", in: ns)
                             if !media.artist.isEmpty || !media.album.isEmpty {
                                 Text([media.artist, media.album].filter { !$0.isEmpty }.joined(separator: " — "))
-                                    .font(.system(size: 12.5, weight: .medium))
+                                    .font(.system(size: 13, weight: .medium))
                                     .foregroundStyle(IslandPalette.secondaryText)
                                     .lineLimit(1)
                             }
@@ -180,7 +180,7 @@ struct MediaProgress: View {
             }()
             HStack(spacing: 10) {
                 Text(position.map(DurationFormatter.clock) ?? "–:––")
-                    .frame(width: 42, alignment: .trailing)
+                    .frame(width: 42, alignment: .leading) // hugs the content edge; fixed width keeps the bar still
                 GeometryReader { geo in
                     LinearProgress(fraction: fraction ?? 0, tint: .white, height: 5)
                         .frame(maxHeight: .infinity)
@@ -189,9 +189,9 @@ struct MediaProgress: View {
                 }
                 .frame(height: 14)
                 Text(duration.map { "-" + DurationFormatter.clock(max(0, $0 - (position ?? 0))) } ?? "–:––")
-                    .frame(width: 46, alignment: .leading)
+                    .frame(width: 46, alignment: .trailing)
             }
-            .font(.system(size: 10.5, weight: .medium).monospacedDigit())
+            .font(.system(size: 11, weight: .medium).monospacedDigit())
             .foregroundStyle(IslandPalette.secondaryText)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Playback position")

@@ -29,7 +29,7 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationSplitView {
-            List(Pane.allCases, selection: $pane) { p in
+            List(Pane.allCases.filter { $0 != .ai || settings.experimentalFeatures }, selection: $pane) { p in
                 Label(p.rawValue, systemImage: p.symbol).tag(p)
             }
             .navigationSplitViewColumnWidth(170)
@@ -51,6 +51,7 @@ struct SettingsView: View {
             .navigationTitle(pane.rawValue)
         }
         .frame(minWidth: 720, minHeight: 500)
+        .onChange(of: settings.experimentalFeatures) { _, on in if !on, pane == .ai { pane = .advanced } }
     }
 }
 
@@ -112,6 +113,7 @@ private struct BehaviorSettings: View {
     @Bindable var settings: IslandSettings
     var body: some View {
         Form {
+            LabeledContent("Open Island") { ShortcutRecorder(shortcut: $settings.islandShortcut) }
             Toggle("Expand on hover", isOn: $settings.hoverExpansion)
             if settings.hoverExpansion {
                 LabeledContent("Hover delay") {
@@ -183,8 +185,10 @@ private struct SearchSettings: View {
             Toggle("Enable search", isOn: $settings.searchEnabled)
             LabeledContent("Shortcut") { ShortcutRecorder(shortcut: $settings.searchShortcut) }
             Toggle("Files (Spotlight)", isOn: $settings.fileSearchEnabled)
-            Toggle("Web", isOn: $settings.webSearchEnabled)
-            if settings.webSearchEnabled {
+            if settings.experimentalFeatures {
+                Toggle("Web", isOn: $settings.webSearchEnabled)
+            }
+            if settings.effectiveWebSearch {
                 Section("Web providers") {
                     providerToggle("wikipedia", "Wikipedia (free, no key)")
                     providerToggle("duckduckgo", "DuckDuckGo Instant Answers (free, no key)")
@@ -263,9 +267,19 @@ private struct AdvancedSettings: View {
     let env: AppEnvironment
     var body: some View {
         Form {
-            Toggle("Debug mode", isOn: $settings.debugMode)
-            Toggle("Performance overlay", isOn: $settings.performanceOverlay)
-            Button("Open Debug Panel") { env.showDebugPanel() }
+            Section {
+                Toggle("Experimental features", isOn: $settings.experimentalFeatures)
+            } footer: {
+                Text("Web results in Search, AI answers, and automation rules. Still being refined.")
+                    .foregroundStyle(.secondary)
+            }
+            #if DEBUG
+            Section("Developer") {
+                Toggle("Debug mode", isOn: $settings.debugMode)
+                Toggle("Performance overlay", isOn: $settings.performanceOverlay)
+                Button("Open Debug Panel") { env.showDebugPanel() }
+            }
+            #endif
             Button("Reset all settings", role: .destructive) { settings.resetToDefaults() }
             LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev")
         }

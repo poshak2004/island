@@ -47,7 +47,7 @@ struct DebugPanelView: View {
                     }
                     section("Event log") {
                         ForEach(env.manager.log.suffix(20).reversed()) { e in
-                            Text("\(Formatters.time.string(from: e.date))  \(e.message)").font(.system(size: 10.5, design: .monospaced)).textSelection(.enabled)
+                            Text("\(Formatters.time.string(from: e.date))  \(e.message)").font(.system(size: 11, design: .monospaced)).textSelection(.enabled)
                         }
                     }
                 }
@@ -97,7 +97,7 @@ struct DebugPanelView: View {
             Text(k).foregroundStyle(.secondary).frame(width: 130, alignment: .leading)
             Text(v).textSelection(.enabled)
         }
-        .font(.system(size: 11.5, design: .monospaced))
+        .font(.system(size: 12, design: .monospaced))
     }
 
     private func fmt(_ s: CGSize) -> String { "\(Int(s.width))×\(Int(s.height))" }
@@ -113,7 +113,7 @@ struct PerformanceOverlayView: View {
             Text("mode \(env.island.mode.rawValue) · primary \(env.manager.primary?.kind.rawValue ?? "—")")
             Text("queue \(env.manager.ordered.count) · events \(env.manager.log.count)")
         }
-        .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+        .font(.system(size: 11, weight: .medium, design: .monospaced))
         .foregroundStyle(.white)
         .padding(8)
         .background(RoundedRectangle(cornerRadius: 8).fill(.black.opacity(0.75)))

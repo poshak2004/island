@@ -83,7 +83,7 @@ struct TimerExpanded: View {
                     Text(timer.label.isEmpty ? "Timer" : timer.label)
                         .font(.system(size: 12, weight: .medium)).foregroundStyle(IslandPalette.secondaryText)
                     Text(isFinished ? "Done" : DurationFormatter.clock(timer.remaining(at: now).rounded(.up)))
-                        .font(.system(size: 34, weight: .light).monospacedDigit())
+                        .font(.system(size: 34, weight: .semibold, design: .rounded).monospacedDigit())
                         .foregroundStyle(IslandPalette.timer)
                         
                 }
