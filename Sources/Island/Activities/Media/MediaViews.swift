@@ -165,6 +165,7 @@ struct MediaExpanded: View {
 
 /// Progress with elapsed/duration. Only ticks (once per second) while visible and playing.
 struct MediaProgress: View {
+    static let seekStep: TimeInterval = 10
     let media: MediaActivity
     var onSeek: (TimeInterval) -> Void
     @State private var dragFraction: Double?
@@ -196,6 +197,16 @@ struct MediaProgress: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Playback position")
             .accessibilityValue("\(DurationFormatter.spoken(position ?? 0)) of \(DurationFormatter.spoken(duration ?? 0))")
+            // VoiceOver / keyboard: step 10 s either way (drag stays for the pointer).
+            .accessibilityAdjustableAction { direction in
+                guard let duration, duration > 0 else { return }
+                let now = position ?? 0
+                switch direction {
+                case .increment: onSeek(min(duration, now + Self.seekStep))
+                case .decrement: onSeek(max(0, now - Self.seekStep))
+                @unknown default: break
+                }
+            }
         }
     }
 

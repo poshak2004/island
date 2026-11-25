@@ -17,43 +17,54 @@ enum ScriptRunner {
         }
     }
 
+    static let readGrace: TimeInterval = 1
+
+    /// Runs the script; cancelling the calling Task terminates osascript and throws `CancellationError`.
     static func run(_ source: String, timeout: TimeInterval = 3) async throws -> String {
-        try await withCheckedThrowingContinuation { cont in
-            DispatchQueue.global(qos: .userInitiated).async {
-                let p = Process()
-                p.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-                p.arguments = ["-e", source]
-                let out = Pipe(), err = Pipe()
-                p.standardOutput = out
-                p.standardError = err
-                let done = DispatchSemaphore(value: 0)
-                p.terminationHandler = { _ in done.signal() }
-                do { try p.run() } catch {
-                    cont.resume(throwing: ScriptError.launch(error.localizedDescription))
-                    return
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        p.arguments = ["-e", source]
+        let child = ChildProcess(p)
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { cont in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    cont.resume(with: Result { try execute(child, timeout: timeout) })
                 }
-                // Read concurrently so large outputs (artwork) can't deadlock on a full pipe.
-                var data = Data()
-                let reader = DispatchQueue(label: "island.script.read")
-                let readDone = DispatchSemaphore(value: 0)
-                reader.async {
-                    data = out.fileHandleForReading.readDataToEndOfFile()
-                    readDone.signal()
-                }
-                if done.wait(timeout: .now() + timeout) == .timedOut {
-                    p.terminate()
-                    cont.resume(throwing: ScriptError.timeout)
-                    return
-                }
-                _ = readDone.wait(timeout: .now() + 1)
-                if p.terminationStatus != 0 {
-                    let msg = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? "AppleScript error"
-                    cont.resume(throwing: ScriptError.failed(msg.trimmingCharacters(in: .whitespacesAndNewlines)))
-                    return
-                }
-                cont.resume(returning: String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "")
             }
+        } onCancel: {
+            child.cancel()
         }
+    }
+
+    /// Blocking body of `run`; called on a background queue.
+    private static func execute(_ child: ChildProcess, timeout: TimeInterval) throws -> String {
+        let p = child.process
+        let out = Pipe(), err = Pipe()
+        p.standardOutput = out
+        p.standardError = err
+        let done = DispatchSemaphore(value: 0)
+        p.terminationHandler = { _ in done.signal() }
+        do { try child.launch() } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            throw ScriptError.launch(error.localizedDescription)
+        }
+        // Read concurrently so large outputs (artwork) can't deadlock on a full pipe.
+        let readDone = DispatchSemaphore(value: 0)
+        child.captureOutput(of: out, done: readDone)
+        if done.wait(timeout: .now() + timeout) == .timedOut {
+            child.terminate()
+            throw ScriptError.timeout
+        }
+        if child.isCancelled { throw CancellationError() }
+        if readDone.wait(timeout: .now() + readGrace) == .timedOut {
+            NSLog("Island: osascript output was not fully read before the grace period ended")
+        }
+        if p.terminationStatus != 0 {
+            let msg = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? "AppleScript error"
+            throw ScriptError.failed(msg.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        return String(data: child.data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
     /// Decodes osascript's `«data XXXXhexhex»` representation of binary data.

@@ -24,6 +24,8 @@ final class VoiceFollower {
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
     private var restartWork: DispatchWorkItem?
+    /// Observes the engine's configuration changes (audio route / default input changed) while listening.
+    private var configObserver: NSObjectProtocol?
     nonisolated private static let tailWords = 6
     private static let restartDelay: TimeInterval = 0.3
 
@@ -34,7 +36,13 @@ final class VoiceFollower {
 
     /// Starts listening. Returns a user-facing reason when it can't.
     func start() async -> String? {
-        guard !isRunning, !isStarting else { return nil }
+        if isRunning { return nil }
+        // A start is already waiting on the permission prompts (possibly after a stop): re-assert
+        // that listening is wanted so the in-flight start goes ahead, and report no error here.
+        if isStarting {
+            wanted = true
+            return nil
+        }
         wanted = true
         isStarting = true
         defer { isStarting = false }
@@ -64,7 +72,7 @@ final class VoiceFollower {
 
     func stop() {
         wanted = false
-        guard isRunning || isStarting || tapInstalled || task != nil else { return } // never started: nothing to touch
+        guard isRunning || isStarting || tapInstalled || task != nil || configObserver != nil else { return } // never started: nothing to touch
         restartWork?.cancel()
         let wasRunning = isRunning
         isRunning = false
@@ -94,7 +102,32 @@ final class VoiceFollower {
         tapInstalled = true
         engine.prepare()
         try engine.start()
+        observeConfigurationChanges(of: engine)
         task = recognizer.recognitionTask(with: request, resultHandler: Self.resultHandler(generation: generation, owner: self))
+    }
+
+    /// AVAudioEngine stops itself when the audio route changes (AirPods connect, default input
+    /// changes) and posts a configuration change. Without this the UI would keep showing
+    /// "listening" while no audio arrives, so restart recognition on a fresh engine.
+    private func observeConfigurationChanges(of engine: AVAudioEngine) {
+        removeConfigurationObserver()
+        configObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.configurationChanged() }
+        }
+    }
+
+    private func configurationChanged() {
+        guard isRunning else { return }
+        NSLog("Island: audio route changed; restarting voice follow")
+        scheduleRestart()
+        engine = nil // the old engine's input format is stale; begin() builds a new one
+    }
+
+    private func removeConfigurationObserver() {
+        if let configObserver { NotificationCenter.default.removeObserver(configObserver) }
+        configObserver = nil
     }
 
     /// Built outside the main actor: the audio thread calls this, and it must not inherit main-actor isolation.
@@ -134,6 +167,7 @@ final class VoiceFollower {
     }
 
     private func tearDown() {
+        removeConfigurationObserver() // only observed while listening; begin() re-adds it
         generation += 1 // late callbacks from the old task are now stale
         task?.cancel()
         task = nil

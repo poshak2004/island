@@ -80,6 +80,8 @@ public final class IslandSettings {
     public var hasCompletedWelcome = false { didSet { save() } }
     /// Once a day, asks GitHub whether a newer build was published. Sends nothing about you.
     public var checkForUpdates = true { didSet { save() } }
+    /// Nothing pops the Island open by itself and new events don't take over; critical alerts still do.
+    public var quietMode = false { didSet { save() } }
 
     public var effectiveWebSearch: Bool { experimentalFeatures && webSearchEnabled }
     public var effectiveAIProvider: AIProviderKind { experimentalFeatures ? aiProvider : .none }
@@ -156,6 +158,7 @@ public final class IslandSettings {
         var experimentalFeatures: Bool?
         var hasCompletedWelcome: Bool?
         var checkForUpdates: Bool?
+        var quietMode: Bool?
         var aiModel: String?
         var forceReduceMotion: Bool?
         var forceReduceTransparency: Bool?
@@ -185,7 +188,7 @@ public final class IslandSettings {
                  hapticFeedback: hapticFeedback, enabledKinds: enabledKinds.map { $0 }.sorted { $0.rawValue < $1.rawValue },
                  browserMediaEnabled: browserMediaEnabled, searchEnabled: searchEnabled, searchShortcut: searchShortcut, islandShortcut: islandShortcut,
                  webSearchEnabled: webSearchEnabled, webSearchProviders: webSearchProviders.sorted(),
-                 fileSearchEnabled: fileSearchEnabled, aiProvider: aiProvider, experimentalFeatures: experimentalFeatures, hasCompletedWelcome: hasCompletedWelcome, checkForUpdates: checkForUpdates, aiModel: aiModel,
+                 fileSearchEnabled: fileSearchEnabled, aiProvider: aiProvider, experimentalFeatures: experimentalFeatures, hasCompletedWelcome: hasCompletedWelcome, checkForUpdates: checkForUpdates, quietMode: quietMode, aiModel: aiModel,
                  forceReduceMotion: forceReduceMotion, forceReduceTransparency: forceReduceTransparency,
                  forceHighContrast: forceHighContrast, debugMode: debugMode, performanceOverlay: performanceOverlay,
                  kindsRevision: Self.kindsRevision, teleprompterScript: teleprompterScript,
@@ -228,6 +231,7 @@ public final class IslandSettings {
         // Installs from before the switch existed: someone who set up AI keeps it.
         if let v = s.hasCompletedWelcome { hasCompletedWelcome = v }
         if let v = s.checkForUpdates { checkForUpdates = v }
+        if let v = s.quietMode { quietMode = v }
         if let v = s.experimentalFeatures { experimentalFeatures = v } else if let p = s.aiProvider, p != .none { experimentalFeatures = true }
         if let v = s.aiModel { aiModel = v }
         if let v = s.forceReduceMotion { forceReduceMotion = v }

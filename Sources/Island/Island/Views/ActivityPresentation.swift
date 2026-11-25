@@ -4,6 +4,14 @@ import SwiftUI
 /// Maps an activity to its compact / minimal / expanded representation. Adding a new activity type
 /// means adding a case here and a view file under Activities/ — the Island itself doesn't change.
 enum ActivityPresentation {
+    /// Longest subtitle that fits a wide compact wing at 12 pt without truncating.
+    static let compactSubtitleLimit = 16
+
+    static func compactSubtitle(_ subtitle: String?) -> String {
+        guard let subtitle, subtitle.count <= compactSubtitleLimit else { return "" }
+        return subtitle
+    }
+
     static func compactStyle(for a: Activity?, showsTitle: Bool = false) -> CompactStyle {
         guard let a else { return .standard }
         switch a.content {
@@ -80,7 +88,9 @@ struct CompactTrailingView: View {
         case .device(let d): DeviceCompactTrailing(device: d)
         case .calendar(let c): CalendarCompactTrailing(event: c)
         case .clipboard: CompactTrailingText(text: "Copied", tint: IslandPalette.secondaryText)
-        case .event(let e): CompactTrailingText(text: e.subtitle ?? "", tint: IslandPalette.secondaryText)
+        // HIG › Live Activities › Compact: only the essential. A long subtitle would be cut off in the
+        // wing, so it waits for the expanded view.
+        case .event(let e): CompactTrailingText(text: ActivityPresentation.compactSubtitle(e.subtitle), tint: IslandPalette.secondaryText)
         case .teleprompter(let t): TeleprompterCompactTrailing(prompter: t)
         case .shelf(let s): ShelfCompactTrailing(shelf: s)
         }
@@ -157,6 +167,7 @@ struct CompactTrailingText: View {
     var tint: Color
     var body: some View {
         Text(text).font(.system(size: 12, weight: .semibold).monospacedDigit()).foregroundStyle(tint).lineLimit(1)
+            .minimumScaleFactor(0.9)
     }
 }
 

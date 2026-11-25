@@ -84,7 +84,8 @@ struct TeleprompterExpanded: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            TimelineView(.animation(minimumInterval: 1.0 / 60, paused: !(active && prompter.rate > 0))) { ctx in
+            // The display's own rate (120 Hz on ProMotion), not a 60 fps cap.
+            TimelineView(.animation(minimumInterval: nil, paused: !(active && prompter.rate > 0))) { ctx in
                 ScriptWindow(script: prompter.script, offset: prompter.lineOffset(at: ctx.date), fontSize: fontSize)
             }
             // Voice follow moves in steps; ease between them instead of jumping.

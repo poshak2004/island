@@ -54,8 +54,10 @@ enum IslandPalette {
     static let batteryGood = Color(nsColor: .systemGreen)
     static let batteryLow = Color(nsColor: .systemRed)
     static let network = Color(nsColor: .systemTeal)
-    /// 70 % white: ≥ 4.5:1 over the default glass on a bright backdrop (was 62 %, which fell short).
-    static let secondaryText = Color.white.opacity(0.7)
+    /// Set from the Island's Increase Contrast state (system setting or Island's own switch).
+    @MainActor static var increasedContrast = false
+    /// 70 % white: ≥ 4.5:1 over the default glass on a bright backdrop; 88 % under Increase Contrast.
+    @MainActor static var secondaryText: Color { .white.opacity(increasedContrast ? 0.88 : 0.7) }
 
     static func hex(_ hex: String?) -> Color? {
         guard var s = hex?.trimmingCharacters(in: .whitespaces), !s.isEmpty else { return nil }
@@ -68,6 +70,8 @@ enum IslandPalette {
 // MARK: Controls
 
 struct IslandIconButton: View {
+    /// HIG › Accessibility: 28 × 28 pt is the macOS default hit target.
+    static let minimumTarget: CGFloat = 28
     var symbol: String
     var size: CGFloat = 15
     var label: String
@@ -81,7 +85,7 @@ struct IslandIconButton: View {
             Image(systemName: symbol)
                 .font(.system(size: size, weight: .semibold))
                 .foregroundStyle(.white.opacity(enabled ? 1 : 0.3))
-                .frame(width: size * 2.3, height: size * 2.3)
+                .frame(width: max(Self.minimumTarget, size * 2.3), height: max(Self.minimumTarget, size * 2.3))
                 .background(Circle().fill(.white.opacity(prominent ? 0.18 : (hovering && enabled ? 0.12 : 0))))
                 .contentShape(Circle())
         }

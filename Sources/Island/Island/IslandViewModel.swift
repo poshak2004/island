@@ -103,12 +103,16 @@ final class IslandViewModel {
         let open = mode == .expanded || mode == .search
         let compactGlass = mode == .compact && settings.compactGlass
         // Reading surfaces (teleprompter) stay solid black: busy content behind glass hurts legibility.
-        let glass = reduceTransparency || (open && primaryPinsExpansion) ? 0 : (open || compactGlass ? settings.glassIntensity : 0)
+        let rawGlass = reduceTransparency || (open && primaryPinsExpansion) ? 0 : (open || compactGlass ? settings.glassIntensity : 0)
+        // Increase Contrast: keep a mostly dark backing so busy backgrounds can't wash out the text.
+        let glass = highContrast ? min(rawGlass, Self.highContrastGlassCap) : rawGlass
         return IslandSurfaceView.Geometry(
             width: size.width + 2 * ear, height: max(size.height, 0.5), earRadius: ear,
             bottomRadius: m.bottomCornerRadius(mode: mode, height: size.height), offsetX: horizontalOffset,
             glass: glass, clearGlass: compactGlass, visible: mode != .idle || m.hasNotch, highContrast: highContrast)
     }
+
+    static let highContrastGlassCap: CGFloat = 0.4
 
     var morphAnimation: Animation { IslandAnimation.morph(reduceMotion: reduceMotion, speed: settings.animationSpeed) }
 
@@ -197,6 +201,7 @@ final class IslandViewModel {
     func collapse() { apply(.collapse) }
 
     func presentTransient(seconds: TimeInterval) {
+        guard !settings.quietMode else { return } // quiet: nothing opens the Island by itself
         apply(.presentTransient)
         transientWork?.cancel()
         let work = DispatchWorkItem { [weak self] in self?.apply(.transientEnded) }

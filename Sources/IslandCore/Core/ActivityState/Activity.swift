@@ -12,6 +12,15 @@ public enum ActivityKind: String, CaseIterable, Codable, Sendable, Hashable {
     case media, timer, download, recording, call, battery, network, device, calendar, clipboard, search, notification, custom
     case teleprompter, shelf
 
+    /// Whether VoiceOver should announce a new activity of this kind. Things that come and go on their
+    /// own (track changes, clipboard confirmations, search) would only be chatter.
+    public var announcesArrival: Bool {
+        switch self {
+        case .media, .clipboard, .search: false
+        default: true
+        }
+    }
+
     public var displayName: String {
         switch self {
         case .media: "Media"
@@ -63,4 +72,14 @@ public enum ActivityUpdate: Sendable {
     case remove(id: String)
     /// Marks an activity complete: it is replaced by `final` (if any) for `linger` seconds, then removed.
     case complete(id: String, final: Activity?, linger: TimeInterval)
+}
+
+extension ActivityUpdate {
+    /// Quiet mode: a new arrival may appear but not take over — `.high` becomes `.normal`. Critical
+    /// alerts are unchanged, so anything that truly needs attention still gets it.
+    public func quieted() -> ActivityUpdate {
+        guard case .upsert(var a) = self, a.priority == .high else { return self }
+        a.priority = .normal
+        return .upsert(a)
+    }
 }

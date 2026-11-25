@@ -121,6 +121,10 @@ private struct BehaviorSettings: View {
     var body: some View {
         Form {
             LabeledContent("Open Island") { ShortcutRecorder(shortcut: $settings.islandShortcut) }
+            Toggle(isOn: $settings.quietMode) {
+                Text("Quiet mode")
+                Text("Nothing opens by itself and new events don't take over. Critical alerts still show.")
+            }
             Toggle("Expand on hover", isOn: $settings.hoverExpansion)
             if settings.hoverExpansion {
                 LabeledContent("Hover delay") {
@@ -191,6 +195,11 @@ private struct SearchSettings: View {
         Form {
             Toggle("Enable search", isOn: $settings.searchEnabled)
             LabeledContent("Shortcut") { ShortcutRecorder(shortcut: $settings.searchShortcut) }
+            if let conflict = shortcutConflict {
+                Label(conflict, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
             Toggle("Files (Spotlight)", isOn: $settings.fileSearchEnabled)
             if settings.experimentalFeatures {
                 Toggle("Web", isOn: $settings.webSearchEnabled)
@@ -209,6 +218,13 @@ private struct SearchSettings: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    /// macOS refuses a hot key another app already owns; say so instead of failing silently.
+    private var shortcutConflict: String? {
+        guard settings.searchEnabled, settings.islandEnabled,
+              let error = env.features.hotKey?.lastError, error != noErr else { return nil }
+        return "\(settings.searchShortcut.display) is already used by another app or macOS. Pick another shortcut."
     }
 
     private func providerToggle(_ id: String, _ title: String) -> some View {

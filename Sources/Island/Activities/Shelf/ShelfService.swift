@@ -2,7 +2,8 @@ import AppKit
 import IslandCore
 import Observation
 
-/// Files parked on the Island. Paths persist across launches; missing files are dropped on load.
+/// Files parked on the Island. Paths persist across launches; missing files are dropped on load and
+/// whenever the shelf is published (start, reveal, drags, commands) or the Island closes.
 /// While a file drag is near the notch the shelf takes the Island (critical priority) to show its
 /// drop targets, then steps back to a low-priority bubble.
 @MainActor
@@ -60,6 +61,16 @@ final class ShelfService {
         publish()
     }
 
+    /// Drops items whose file was deleted or moved since it was parked. Returns whether anything changed.
+    @discardableResult
+    func pruneMissing() -> Bool {
+        let kept = ShelfLogic.keepingExisting(items) { FileManager.default.fileExists(atPath: $0.path) }
+        guard kept.count != items.count else { return false }
+        items = kept
+        save()
+        return true
+    }
+
     /// A file drag entered or left the area around the notch.
     func setDragActive(_ active: Bool) {
         guard running, isDropTarget != active else { return }
@@ -73,14 +84,17 @@ final class ShelfService {
     // MARK: Internals
 
     /// The Island closed: an empty, revealed shelf goes away again.
+    /// Also drops files that vanished while the shelf was on screen, so the next open is current.
     func conceal() {
-        guard revealed else { return }
+        let pruned = pruneMissing()
+        guard revealed || pruned else { return }
         revealed = false
         publish()
     }
 
     private func publish(priority requested: ActivityPriority? = nil) {
         guard running else { return }
+        pruneMissing()
         guard !items.isEmpty || isDropTarget || revealed else {
             sink(.remove(id: Self.activityID))
             return

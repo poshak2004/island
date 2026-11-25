@@ -25,6 +25,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         toggle.state = env.settings.islandEnabled ? .on : .off
         toggle.target = self
         menu.addItem(toggle)
+        let quiet = NSMenuItem(title: "Quiet Mode", action: #selector(toggleQuiet), keyEquivalent: "")
+        quiet.state = env.settings.quietMode ? .on : .off
+        quiet.target = self
+        menu.addItem(quiet)
         if env.settings.searchEnabled, env.settings.islandEnabled {
             let s = NSMenuItem(title: "Search… (\(env.settings.searchShortcut.display))", action: #selector(openSearch), keyEquivalent: "")
             s.target = self
@@ -54,6 +58,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     @objc private func toggleIsland() { env.settings.islandEnabled.toggle() }
+    @objc private func toggleQuiet() { env.settings.quietMode.toggle() }
     @objc private func openSearch() {
         // Let the menu finish closing before the panel takes key focus.
         DispatchQueue.main.async { self.env.commands.perform(.ui(.toggleSearch)) }
