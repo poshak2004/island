@@ -110,4 +110,73 @@ func registerAirPodsTests() {
         expect(banner.height < card.height, "banner \(banner.height) should be shorter than card \(card.height)")
         expect(banner.height > m.compactHeight + 40, "banner must fit a 44pt row below the notch")
     }
+
+    test(S, "banner cooldown: a device presented within the window stays quiet") {
+        var c = AirPodsBannerCooldown(interval: 60)
+        let t0 = Date(timeIntervalSince1970: 1_000)
+        expect(c.shouldPresent(name: "Poshak's AirPods", now: t0), "never shown → present")
+        c.recordPresented(name: "Poshak's AirPods", now: t0)
+        expect(!c.shouldPresent(name: "Poshak's AirPods", now: t0.addingTimeInterval(30)), "re-fire within 60 s suppressed")
+        expect(c.shouldPresent(name: "Poshak's AirPods", now: t0.addingTimeInterval(60)), "cooldown expires at the interval")
+    }
+
+    test(S, "banner cooldown is per device and tolerant of apostrophe variants") {
+        var c = AirPodsBannerCooldown(interval: 60)
+        let t0 = Date(timeIntervalSince1970: 1_000)
+        c.recordPresented(name: "Poshak’s AirPods", now: t0)
+        expect(!c.shouldPresent(name: "Poshak's AirPods", now: t0.addingTimeInterval(5)))
+        expect(c.shouldPresent(name: "Kitchen AirPods Max", now: t0.addingTimeInterval(5)), "another pair is unaffected")
+    }
+
+    test(S, "banner cooldown ignores a clock that went backwards") {
+        var c = AirPodsBannerCooldown(interval: 60)
+        let t0 = Date(timeIntervalSince1970: 1_000)
+        c.recordPresented(name: "AirPods", now: t0)
+        expect(c.shouldPresent(name: "AirPods", now: t0.addingTimeInterval(-10)), "negative elapsed time never suppresses")
+    }
+
+    test(S, "pending connection: starts at once when idle, queues one (latest wins) otherwise") {
+        var q = AirPodsPendingConnection()
+        expect(q.offer(name: "A", phase: .idle), "idle → start now")
+        expect(q.pending == nil)
+        expect(!q.offer(name: "B", phase: .connected), "busy → queued")
+        expect(!q.offer(name: "C", phase: .dismissing))
+        expectEqual(q.pending, "C")
+        expect(q.take(phase: .dismissing) == nil, "nothing runs until idle")
+        expectEqual(q.take(phase: .idle), "C")
+        expect(q.take(phase: .idle) == nil, "taken once")
+    }
+
+    test(S, "pending connection: a disconnect drops the queued device") {
+        var q = AirPodsPendingConnection()
+        _ = q.offer(name: "B", phase: .revealingDevice)
+        expect(q.dropOnDisconnect(), "had a pending device")
+        expect(q.pending == nil)
+        expect(!q.dropOnDisconnect(), "nothing left to drop")
+    }
+
+    test(S, "pending connection: re-offering the device already running is not queued") {
+        var q = AirPodsPendingConnection()
+        _ = q.offer(name: "A", phase: .idle)
+        expect(!q.offer(name: "A", phase: .connected, current: "A"))
+        expect(q.pending == nil, "same pair re-announced mid-sequence is ignored")
+    }
+
+    test(S, "Apple report identifies renamed AirPods by product ID; other vendors/products don't") {
+        let renamed = BluetoothDeviceReport(name: "Poshak's Buds", productID: 0x2014, vendorID: 0x004C, connected: true)
+        expectEqual(AirPodsModel.identify(renamed), .airPodsPro2)
+        var sony = renamed; sony.vendorID = 0x054C
+        expect(AirPodsModel.identify(sony) == nil, "non-Apple vendor")
+        var beats = renamed; beats.productID = 0x2011
+        expect(AirPodsModel.identify(beats) == nil, "Apple but not an AirPods product ID")
+        var noPID = renamed; noPID.productID = nil
+        expect(AirPodsModel.identify(noPID) == nil, "name alone never makes a renamed device AirPods")
+    }
+
+    test(S, "only Bluetooth outputs without 'airpods' in the name need a lookup") {
+        expect(AirPodsRouting.needsLookup(name: "Poshak's Buds", isBluetooth: true))
+        expect(!AirPodsRouting.needsLookup(name: "Poshak's AirPods Pro", isBluetooth: true))
+        expect(!AirPodsRouting.needsLookup(name: "LG Monitor", isBluetooth: false))
+        expect(AirPodsRouting.isAirPodsName("My AIRPODS"))
+    }
 }

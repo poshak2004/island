@@ -49,6 +49,16 @@ public enum AirPodsModel: String, CaseIterable, Sendable, Codable {
         return .unknownAirPods
     }
 
+    /// Apple's Bluetooth vendor ID.
+    public static let appleVendorID = 0x004C
+
+    /// Identifies AirPods from a system report by vendor + product ID only — never by name, so a renamed
+    /// pair ("Poshak's Buds") is still recognised and a non-Apple "…AirPods…" clone is not promoted.
+    public static func identify(_ report: BluetoothDeviceReport) -> AirPodsModel? {
+        guard report.vendorID == appleVendorID, let pid = report.productID else { return nil }
+        return productIDs[pid]
+    }
+
     /// `com.apple.device-model-code` tag macOS uses for the model's device type (e.g. "Device1,8228").
     public static func deviceModelCode(productID: Int) -> String { "Device1,\(productID)" }
 }
@@ -217,5 +227,71 @@ public struct AirPodsConnectionStateMachine: Equatable, Sendable {
         default: break // Ignore out-of-order events: a phase can never be skipped or repeated.
         }
         return phase
+    }
+}
+
+/// How an audio output route should be treated before any system lookup.
+public enum AirPodsRouting {
+    public static func isAirPodsName(_ name: String) -> Bool { name.lowercased().contains("airpods") }
+
+    /// A Bluetooth output whose name doesn't say "AirPods" may be a renamed pair: ask the system.
+    public static func needsLookup(name: String, isBluetooth: Bool) -> Bool { isBluetooth && !isAirPodsName(name) }
+}
+
+/// Per-device banner cooldown: macOS re-announces AirPods when they hop back from an iPhone or are
+/// re-selected in the Sound menu, and the banner shouldn't pop again for the same pair right away.
+public struct AirPodsBannerCooldown: Equatable, Sendable {
+    public static let defaultInterval: TimeInterval = 60
+    public let interval: TimeInterval
+    private var lastPresented: [String: Date] = [:]
+
+    public init(interval: TimeInterval = Self.defaultInterval) {
+        self.interval = interval
+    }
+
+    public func shouldPresent(name: String, now: Date) -> Bool {
+        guard let last = lastPresented[Self.key(name)] else { return true }
+        let elapsed = now.timeIntervalSince(last)
+        return elapsed < 0 || elapsed >= interval
+    }
+
+    public mutating func recordPresented(name: String, now: Date) {
+        lastPresented[Self.key(name)] = now
+    }
+
+    /// Apostrophe/space-insensitive, like `SystemProfilerBluetoothParser.match`.
+    static func key(_ name: String) -> String { name.lowercased().filter { $0.isLetter || $0.isNumber } }
+}
+
+/// One queued AirPods connection (latest wins) for when a second pair arrives mid-sequence.
+public struct AirPodsPendingConnection: Equatable, Sendable {
+    public private(set) var pending: String?
+
+    public init() {}
+
+    /// Returns true when the sequence should start now; otherwise the device is queued.
+    /// A re-announcement of the pair already on screen (`current`) is not queued.
+    public mutating func offer(name: String, phase: AirPodsConnectionPhase, current: String? = nil) -> Bool {
+        if phase == .idle {
+            pending = nil
+            return true
+        }
+        if name != current { pending = name }
+        return false
+    }
+
+    /// The queued device, once the sequence is back to idle. Hands it out once.
+    public mutating func take(phase: AirPodsConnectionPhase) -> String? {
+        guard phase == .idle, let name = pending else { return nil }
+        pending = nil
+        return name
+    }
+
+    /// A disconnect while a device is queued refers to that device (the previous one was signalled
+    /// before it was offered), so it simply drops out of the queue. Returns whether one was dropped.
+    public mutating func dropOnDisconnect() -> Bool {
+        guard pending != nil else { return false }
+        pending = nil
+        return true
     }
 }
