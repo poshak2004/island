@@ -254,7 +254,7 @@ struct ActivitySwitcher: View {
                     Image(systemName: "house.fill")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(.white)
-                        .frame(width: 24, height: 24)
+                        .frame(width: 28, height: 28) // HIG macOS default hit target
                         .background(Circle().fill(.white.opacity(model.showsHome ? 0.2 : 0.06)))
                         .contentShape(Circle())
                 }
@@ -269,7 +269,7 @@ struct ActivitySwitcher: View {
                         model.commands.perform(.ui(.select(activityID: a.id)))
                     } label: {
                         MinimalView(activity: a)
-                            .frame(width: 24, height: 24)
+                            .frame(width: 28, height: 28) // HIG macOS default hit target
                             .background(Circle().fill(.white.opacity(selected ? 0.2 : 0.06)))
                             .contentShape(Circle())
                     }

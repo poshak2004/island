@@ -70,6 +70,8 @@ enum IslandPalette {
 // MARK: Controls
 
 struct IslandIconButton: View {
+    /// HIG › Accessibility: 28 × 28 pt is the macOS default hit target.
+    static let minimumTarget: CGFloat = 28
     var symbol: String
     var size: CGFloat = 15
     var label: String
@@ -83,7 +85,7 @@ struct IslandIconButton: View {
             Image(systemName: symbol)
                 .font(.system(size: size, weight: .semibold))
                 .foregroundStyle(.white.opacity(enabled ? 1 : 0.3))
-                .frame(width: size * 2.3, height: size * 2.3)
+                .frame(width: max(Self.minimumTarget, size * 2.3), height: max(Self.minimumTarget, size * 2.3))
                 .background(Circle().fill(.white.opacity(prominent ? 0.18 : (hovering && enabled ? 0.12 : 0))))
                 .contentShape(Circle())
         }
