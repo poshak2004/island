@@ -43,4 +43,9 @@ public enum ShelfLogic {
     public static func removing(_ id: UUID, from items: [ShelfItem]) -> [ShelfItem] {
         items.filter { $0.id != id }
     }
+
+    /// Drops items whose file no longer exists (deleted or moved since it was parked), keeping order.
+    public static func keepingExisting(_ items: [ShelfItem], exists: (URL) -> Bool) -> [ShelfItem] {
+        items.filter { exists($0.url) }
+    }
 }

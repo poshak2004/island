@@ -22,12 +22,20 @@ final class CalendarProvider {
         observer = NotificationCenter.default.addObserver(forName: .EKEventStoreChanged, object: store, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.refresh() }
         }
-        store.requestFullAccessToEvents { [weak self] granted, _ in
+        store.requestFullAccessToEvents { [weak self] granted, error in
             DispatchQueue.main.async {
-                self?.status = granted ? "On" : "Calendar access denied (System Settings › Privacy & Security › Calendars)"
-                if granted { self?.refresh() }
+                MainActor.assumeIsolated { self?.accessResolved(granted: granted, error: error) }
             }
         }
+    }
+
+    /// The access prompt answered. Ignored when the provider was stopped while the prompt was up,
+    /// so a disabled calendar never re-publishes an activity.
+    private func accessResolved(granted: Bool, error: Error?) {
+        if let error { NSLog("Island: calendar access request failed: %@", error.localizedDescription) }
+        guard observer != nil else { return }
+        status = granted ? "On" : "Calendar access denied (System Settings › Privacy & Security › Calendars)"
+        if granted { refresh() }
     }
 
     func stop() {

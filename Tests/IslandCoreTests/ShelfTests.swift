@@ -32,6 +32,15 @@ func registerShelfTests() {
         expectEqual(ShelfLogic.removing(UUID(), from: items), items)
     }
 
+    test(S, "keepingExisting drops items whose file is gone and keeps order") {
+        let c = URL(fileURLWithPath: "/tmp/c.txt")
+        let items = ShelfLogic.adding([a, b, c], to: [])
+        let left = ShelfLogic.keepingExisting(items) { $0.path != b.path }
+        expectEqual(left.map(\.name), ["a.pdf", "c.txt"])
+        expectEqual(ShelfLogic.keepingExisting(items) { _ in true }, items)
+        expect(ShelfLogic.keepingExisting(items) { _ in false }.isEmpty)
+    }
+
     test(S, "validator accepts shelf content only for the shelf kind") {
         let content = ActivityContent.shelf(ShelfActivity(items: ShelfLogic.adding([a], to: [])))
         let manager = ActivityManager()

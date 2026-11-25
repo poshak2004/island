@@ -5,30 +5,50 @@ import Observation
 /// Reads model and battery details with `system_profiler SPBluetoothDataType -json` — Apple's public
 /// reporting tool. Runs out of process with a timeout, so a slow query can never block the Island.
 enum AirPodsInfoProvider {
+    /// Cancelling the calling Task terminates system_profiler and returns nil.
     static func lookup(name: String, timeout: TimeInterval = 6) async -> BluetoothDeviceReport? {
-        await withCheckedContinuation { cont in
-            DispatchQueue.global(qos: .userInitiated).async {
-                let p = Process()
-                p.executableURL = URL(fileURLWithPath: "/usr/sbin/system_profiler")
-                p.arguments = ["SPBluetoothDataType", "-json", "-detailLevel", "basic"]
-                let out = Pipe()
-                p.standardOutput = out
-                p.standardError = FileHandle.nullDevice
-                do { try p.run() } catch { cont.resume(returning: nil); return }
-                var data = Data()
-                let read = DispatchSemaphore(value: 0)
-                DispatchQueue.global().async {
-                    data = out.fileHandleForReading.readDataToEndOfFile()
-                    read.signal()
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/sbin/system_profiler")
+        p.arguments = ["SPBluetoothDataType", "-json", "-detailLevel", "basic"]
+        let child = ChildProcess(p)
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { cont in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let data = profilerOutput(child, timeout: timeout)
+                    cont.resume(returning: data.flatMap {
+                        SystemProfilerBluetoothParser.match(name, in: SystemProfilerBluetoothParser.parse($0))
+                    })
                 }
-                if read.wait(timeout: .now() + timeout) == .timedOut {
-                    p.terminate()
-                    cont.resume(returning: nil)
-                    return
-                }
-                cont.resume(returning: SystemProfilerBluetoothParser.match(name, in: SystemProfilerBluetoothParser.parse(data)))
             }
+        } onCancel: {
+            child.cancel()
         }
+    }
+
+    /// Blocking: system_profiler's JSON, or nil on launch failure, timeout, cancellation or a non-zero exit.
+    private static func profilerOutput(_ child: ChildProcess, timeout: TimeInterval) -> Data? {
+        let p = child.process
+        let out = Pipe()
+        p.standardOutput = out
+        p.standardError = FileHandle.nullDevice
+        do { try child.launch() } catch {
+            if !(error is CancellationError) { NSLog("Island: system_profiler launch failed: %@", error.localizedDescription) }
+            return nil
+        }
+        let read = DispatchSemaphore(value: 0)
+        child.captureOutput(of: out, done: read)
+        if read.wait(timeout: .now() + timeout) == .timedOut {
+            child.terminate()
+            NSLog("Island: system_profiler timed out after %.0fs", timeout)
+            return nil
+        }
+        p.waitUntilExit() // EOF seen: the process is exiting; needed before reading its status
+        if child.isCancelled { return nil }
+        guard p.terminationStatus == 0 else {
+            NSLog("Island: system_profiler exited with status %d", p.terminationStatus)
+            return nil
+        }
+        return child.data
     }
 }
 
