@@ -52,6 +52,11 @@ final class AirPodsConnectionAnimator {
     @ObservationIgnored private var sequence: Task<Void, Never>?
     @ObservationIgnored private var details: Task<Void, Never>?
     @ObservationIgnored var lookup: (String) async -> BluetoothDeviceReport? = { await AirPodsInfoProvider.lookup(name: $0) }
+    @ObservationIgnored var now: () -> Date = Date.init
+    /// Suppresses a repeat banner when macOS re-announces the same pair (handoff back from iPhone, Sound menu).
+    @ObservationIgnored private var cooldown = AirPodsBannerCooldown()
+    /// A second pair that arrives mid-sequence runs as soon as this one finishes (latest wins).
+    @ObservationIgnored private var queue = AirPodsPendingConnection()
 
     static let activityID = "device"
 
@@ -73,9 +78,31 @@ final class AirPodsConnectionAnimator {
     // MARK: Input
 
     func deviceConnected(name: String) {
-        guard phase == .idle else { return } // one sequence at a time
+        // One sequence at a time; a different pair arriving meanwhile is queued and runs once idle.
+        guard queue.offer(name: name, phase: phase, current: device?.name) else { return }
+        guard cooldown.shouldPresent(name: name, now: now()) else { return showQuietly(name: name) }
+        cooldown.recordPresented(name: name, now: now())
+        startSequence(name: name)
+    }
+
+    /// Only ever called for a route already identified as AirPods (by name or by Apple product ID), so a
+    /// renamed pair falls back to generic AirPods until the lookup supplies the exact model.
+    private static func connectedActivity(name: String) -> DeviceActivity {
+        DeviceActivity(name: name, type: .headphones, connected: true,
+                       airPods: AirPodsModel.resolve(productID: nil, name: name) ?? .unknownAirPods)
+    }
+
+    /// Within the cooldown: refresh the compact activity without opening the Island.
+    private func showQuietly(name: String) {
+        sink(.upsert(Activity(id: Self.activityID, kind: .device, priority: .high,
+                              content: .device(Self.connectedActivity(name: name)),
+                              expiresAt: Date().addingTimeInterval(Self.compactLinger))))
+    }
+
+    private func startSequence(name: String) {
+        details?.cancel()
         machine.handle(.deviceConnected)
-        device = DeviceActivity(name: name, type: .headphones, connected: true, airPods: AirPodsModel.resolve(productID: nil, name: name))
+        device = Self.connectedActivity(name: name)
 
         // Details (exact model + battery) are fetched in parallel. The card opens after a short budget
         // even if they're not back yet; battery then fades in when it arrives.
@@ -91,7 +118,9 @@ final class AirPodsConnectionAnimator {
     }
 
     func deviceDisconnected() {
-        guard phase != .idle else { return }
+        // The previous pair is always signalled before a new one is queued, so a disconnect while a
+        // pair is queued means the queued pair left before its turn.
+        guard !queue.dropOnDisconnect(), phase != .idle else { return }
         details?.cancel()
         let wasDetecting = phase == .detecting
         machine.handle(.deviceDisconnected)
@@ -135,7 +164,14 @@ final class AirPodsConnectionAnimator {
         Task { [weak self] in
             await self?.sleep(Self.islandClose)
             self?.machine.handle(.islandClosed)
+            self?.startPendingIfIdle()
         }
+    }
+
+    /// Runs the queued pair (if any) now that the previous sequence is over.
+    private func startPendingIfIdle() {
+        guard let name = queue.take(phase: phase) else { return }
+        deviceConnected(name: name)
     }
 
     private func apply(_ report: BluetoothDeviceReport) {
