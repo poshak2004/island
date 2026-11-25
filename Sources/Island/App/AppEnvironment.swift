@@ -38,7 +38,8 @@ final class AppEnvironment {
         manager = ActivityManager(bus: bus)
         island = IslandViewModel(manager: manager, settings: settings, accessibility: accessibility, commands: commands)
         window = IslandWindowController(model: island, search: search)
-        let submit: (ActivityUpdate) -> Void = { [manager] in manager.submit($0) }
+        // Quiet mode applies to everything that arrives, whatever produced it.
+        let submit: (ActivityUpdate) -> Void = { [manager, settings] in manager.submit(settings.quietMode ? $0.quieted() : $0) }
         timers = TimerService(bus: bus, sink: submit)
         teleprompter = TeleprompterService(settings: settings, sink: submit)
         updates = UpdateService(settings: settings)
@@ -228,6 +229,9 @@ extension AppEnvironment {
             case .activityStarted(_, .recording):
                 self.cameraMaybeStarted()
             default: break
+            }
+            if case .activityStarted(let id, _) = event, let activity = self.manager.ordered.first(where: { $0.id == id }) {
+                Announcer.announce(activity)
             }
         }
     }

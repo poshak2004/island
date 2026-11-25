@@ -121,6 +121,10 @@ private struct BehaviorSettings: View {
     var body: some View {
         Form {
             LabeledContent("Open Island") { ShortcutRecorder(shortcut: $settings.islandShortcut) }
+            Toggle(isOn: $settings.quietMode) {
+                Text("Quiet mode")
+                Text("Nothing opens by itself and new events don't take over. Critical alerts still show.")
+            }
             Toggle("Expand on hover", isOn: $settings.hoverExpansion)
             if settings.hoverExpansion {
                 LabeledContent("Hover delay") {

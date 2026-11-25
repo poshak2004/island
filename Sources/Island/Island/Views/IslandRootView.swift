@@ -12,6 +12,8 @@ struct IslandRootView: View {
         let metrics = model.metrics
         let mode = model.mode
         let canvas = metrics.windowSize
+        // Read here so a change re-renders the Island with the right text contrast.
+        let _ = { IslandPalette.increasedContrast = model.highContrast }()
 
         content(metrics: metrics, size: model.islandSize)
             .offset(x: mode == .compact ? model.horizontalOffset : 0)

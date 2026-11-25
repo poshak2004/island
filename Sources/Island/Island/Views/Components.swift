@@ -54,8 +54,10 @@ enum IslandPalette {
     static let batteryGood = Color(nsColor: .systemGreen)
     static let batteryLow = Color(nsColor: .systemRed)
     static let network = Color(nsColor: .systemTeal)
-    /// 70 % white: ≥ 4.5:1 over the default glass on a bright backdrop (was 62 %, which fell short).
-    static let secondaryText = Color.white.opacity(0.7)
+    /// Set from the Island's Increase Contrast state (system setting or Island's own switch).
+    @MainActor static var increasedContrast = false
+    /// 70 % white: ≥ 4.5:1 over the default glass on a bright backdrop; 88 % under Increase Contrast.
+    @MainActor static var secondaryText: Color { .white.opacity(increasedContrast ? 0.88 : 0.7) }
 
     static func hex(_ hex: String?) -> Color? {
         guard var s = hex?.trimmingCharacters(in: .whitespaces), !s.isEmpty else { return nil }
