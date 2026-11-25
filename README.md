@@ -34,6 +34,14 @@ Built solo by [Poshak K](https://linkedin.com/in/poshak-k). Next steps are in [R
 Download **Island.dmg** from [Releases](https://github.com/poshak2004/island/releases), drag Island to Applications, and open it.
 Island isn't notarized (no paid Apple Developer account), so the first launch needs **System Settings → Privacy & Security → Open Anyway**. See [DISTRIBUTION.md](DISTRIBUTION.md).
 
+**Shortcut (optional):** after copying Island to Applications, this clears macOS's "downloaded from the internet" mark, so Island opens with no warning:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/Island.app
+```
+
+Only do this for apps you trust. Check the download against `SHA256SUMS.txt` first (see [DISTRIBUTION.md](DISTRIBUTION.md#verify-your-download)).
+
 Requires macOS 14 Sonoma or later. Works on notched MacBooks, Macs without a notch, and external displays.
 
 ## Activities

@@ -50,7 +50,8 @@ struct IslandRootView: View {
             if let primary = model.primary {
                 let compactShown = mode == .compact
                 CompactLayout(activity: primary, minimals: Array(model.secondaries.prefix(IslandMetrics.maxMinimals)),
-                              metrics: metrics, style: model.compactStyle, showsTitle: model.settings.compactShowsTitle)
+                              metrics: metrics, style: model.compactStyle, showsTitle: model.settings.compactShowsTitle,
+                              overflow: model.manager.overflowCount)
                     .offset(x: metrics.horizontalOffset(mode: .compact, compact: model.compactStyle,
                                                         minimals: min(model.secondaries.count, IslandMetrics.maxMinimals)))
                     .id("compact-\(primary.id)")
@@ -91,6 +92,8 @@ struct CompactLayout: View {
     let metrics: IslandMetrics
     let style: CompactStyle
     var showsTitle = false
+    /// Live activities beyond the visible bubbles: a "+N" badge, so nothing is silently hidden.
+    var overflow = 0
     @Environment(\.islandNamespace) private var ns
 
     var body: some View {
@@ -114,6 +117,7 @@ struct CompactLayout: View {
                 if let first = minimals.first {
                     separator
                     minimal(first)
+                        .overlay(alignment: .topTrailing) { if overflow > 0 { overflowBadge } }
                 }
             }
             .frame(width: wings.trailing - pad, height: metrics.compactHeight)
@@ -122,6 +126,16 @@ struct CompactLayout: View {
         .frame(height: metrics.compactHeight)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(ActivityPresentation.accessibilityLabel(for: activity))
+    }
+
+    private var overflowBadge: some View {
+        Text("+\(overflow)")
+            .font(.system(size: 9, weight: .bold).monospacedDigit())
+            .foregroundStyle(.black)
+            .padding(.horizontal, 3)
+            .background(Capsule().fill(.white))
+            .offset(x: 2, y: 3)
+            .accessibilityLabel("\(overflow) more")
     }
 
     private var separator: some View {
@@ -224,11 +238,13 @@ struct ExpandedContentHeightKey: PreferenceKey {
 
 /// Small activity tabs in the expanded header. They share geometry with the compact bubbles.
 struct ActivitySwitcher: View {
+    static let maxTabs = 5
     let model: IslandViewModel
     @Environment(\.islandNamespace) private var ns
 
     var body: some View {
-        let items = Array(model.manager.ordered.prefix(model.manager.maxSecondaries + 1))
+        // Every live activity gets a tab (up to a handful), so none is ever unreachable.
+        let items = Array(model.manager.ordered.prefix(Self.maxTabs))
         if !items.isEmpty, model.home != nil {
             HStack(spacing: 4) {
                 // Home is always one click away, even while something is playing.

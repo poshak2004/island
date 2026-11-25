@@ -19,7 +19,7 @@ final class UpdateService {
     @ObservationIgnored private var task: Task<Void, Never>?
 
     static let lastCheckKey = "island.updates.lastCheck"
-    static let requestTimeout: TimeInterval = 10
+    nonisolated static let requestTimeout: TimeInterval = 10
 
     init(settings: IslandSettings, defaults: UserDefaults = .standard) {
         self.settings = settings

@@ -79,19 +79,26 @@ public final class ActivityManager {
         recompute()
     }
 
-    /// Cycle the primary through the visible activities (used by keyboard / debug "Switch Activity").
+    /// Cycle the primary through every live activity (keyboard →, debug "Switch Activity").
     public func selectNext() {
         guard ordered.count > 1 else { return }
         // Cycle in arrival order, which (unlike rank order) doesn't change when the selection does.
-        let visible = Array(ordered.prefix(maxSecondaries + 1)).sorted { $0.sequence < $1.sequence }
+        let visible = cycleOrder
         guard let current = primary, let idx = visible.firstIndex(where: { $0.id == current.id }) else { return }
         select(id: visible[(idx + 1) % visible.count].id)
     }
 
+    /// Every live activity in arrival order — what next/previous step through, so nothing beyond the
+    /// visible bubbles is ever unreachable. Arrival order doesn't change when the selection does.
+    var cycleOrder: [Activity] { ordered.sorted { $0.sequence < $1.sequence } }
+
+    /// Live activities beyond the primary and its visible secondaries (shown as "+N").
+    public var overflowCount: Int { max(0, ordered.count - 1 - secondaries.count) }
+
     /// The reverse of `selectNext` (keyboard ←).
     public func selectPrevious() {
         guard ordered.count > 1 else { return }
-        let visible = Array(ordered.prefix(maxSecondaries + 1)).sorted { $0.sequence < $1.sequence }
+        let visible = cycleOrder
         guard let current = primary, let idx = visible.firstIndex(where: { $0.id == current.id }) else { return }
         select(id: visible[(idx - 1 + visible.count) % visible.count].id)
     }

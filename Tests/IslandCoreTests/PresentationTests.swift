@@ -206,6 +206,22 @@ func registerRegressionTests() {
         expectEqual(seen, ["a", "c", "b", "a"])
     }
 
+    test(S, "a 4th activity is reachable: next/previous cycle every live activity, and overflow is counted") {
+        let mgr = ActivityManager(clock: { Date(timeIntervalSince1970: 0) })
+        mgr.schedulesExpiry = false
+        for id in ["a", "b", "c", "d"] {
+            mgr.submit(.upsert(Activity(id: id, kind: .custom, priority: .normal, content: .event(SystemEventActivity(symbol: "x", title: id)))))
+        }
+        expectEqual(mgr.secondaries.count, 2)
+        expectEqual(mgr.overflowCount, 1)
+        var seen: [String] = []
+        for _ in 0..<4 { seen.append(mgr.primary!.id); mgr.selectNext() }
+        expectEqual(seen, ["a", "b", "c", "d"])
+        expectEqual(mgr.primary!.id, "a") // wrapped around past the 4th
+        mgr.selectPrevious()
+        expectEqual(mgr.primary!.id, "d") // and back to it
+    }
+
     test(S, "the open-Island shortcut defaults to ⌃⌥I and persists") {
         let d = UserDefaults(suiteName: "island.tests.\(UUID().uuidString)")!
         let s = IslandSettings(defaults: d)
