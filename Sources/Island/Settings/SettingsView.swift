@@ -14,19 +14,17 @@ struct SettingsView: View {
     }
 
     enum Pane: String, CaseIterable, Identifiable {
-        case general = "General", home = "Home", appearance = "Appearance", behavior = "Behavior", activities = "Activities", teleprompter = "Teleprompter"
-        case search = "Search", ai = "AI", accessibility = "Accessibility", advanced = "Advanced"
+        case general = "General", home = "Home", appearance = "Appearance", activities = "Activities", teleprompter = "Teleprompter"
+        case search = "Search", accessibility = "Accessibility", advanced = "Advanced"
         var id: String { rawValue }
         var symbol: String {
             switch self {
             case .general: "gearshape"
             case .home: "house"
             case .appearance: "paintbrush"
-            case .behavior: "hand.point.up.left"
             case .activities: "square.stack.3d.up"
             case .teleprompter: "text.alignleft"
             case .search: "magnifyingglass"
-            case .ai: "sparkles"
             case .accessibility: "accessibility"
             case .advanced: "wrench.and.screwdriver"
             }
@@ -35,7 +33,7 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationSplitView {
-            List(Pane.allCases.filter { $0 != .ai || settings.experimentalFeatures }, selection: $pane) { p in
+            List(Pane.allCases, selection: $pane) { p in
                 Label(p.rawValue, systemImage: p.symbol).tag(p)
             }
             .navigationSplitViewColumnWidth(170)
@@ -45,11 +43,9 @@ struct SettingsView: View {
                 case .general: GeneralSettings(settings: settings, env: env)
                 case .home: HomeSettings(settings: settings, env: env)
                 case .appearance: AppearanceSettings(settings: settings)
-                case .behavior: BehaviorSettings(settings: settings)
                 case .activities: ActivitySettings(settings: settings, env: env)
                 case .teleprompter: TeleprompterSettings(settings: settings, env: env)
                 case .search: SearchSettings(settings: settings, env: env)
-                case .ai: AISettings(settings: settings)
                 case .accessibility: AccessibilitySettings(settings: settings, env: env)
                 case .advanced: AdvancedSettings(settings: settings, env: env)
                 }
@@ -57,7 +53,6 @@ struct SettingsView: View {
             .navigationTitle(pane.rawValue)
         }
         .frame(minWidth: 720, minHeight: 500)
-        .onChange(of: settings.experimentalFeatures) { _, on in if !on, pane == .ai { pane = .advanced } }
     }
 }
 
@@ -86,6 +81,11 @@ private struct GeneralSettings: View {
                 LabeledContent("Current", value: "\(g.screen.name) · \(g.hasNotch ? "notch \(Int(g.notchSize.width))×\(Int(g.notchSize.height))pt" : "no notch")")
                     .font(.caption)
             }
+            Toggle(isOn: $settings.hideInFullScreen) {
+                Text("Hide in full screen")
+                Text("Steps aside while a video, presentation or game fills the screen.")
+            }
+            Section("Behavior") { BehaviorSection(settings: settings) }
         }
         .formStyle(.grouped)
     }
@@ -116,10 +116,11 @@ private struct AppearanceSettings: View {
     }
 }
 
-private struct BehaviorSettings: View {
+/// Rows shown in General › Behavior (was its own pane).
+private struct BehaviorSection: View {
     @Bindable var settings: IslandSettings
     var body: some View {
-        Form {
+        Group {
             LabeledContent("Open Island") { ShortcutRecorder(shortcut: $settings.islandShortcut) }
             Toggle(isOn: $settings.quietMode) {
                 Text("Quiet mode")
@@ -145,7 +146,6 @@ private struct BehaviorSettings: View {
             }
             Toggle("Trackpad haptics on expand", isOn: $settings.hapticFeedback)
         }
-        .formStyle(.grouped)
     }
 }
 
@@ -162,14 +162,35 @@ private struct ActivitySettings: View {
         (.shelf, "Drag files to the notch to keep or AirDrop them"),
     ]
 
+    private func quietBinding(_ kind: ActivityKind) -> Binding<Bool> {
+        Binding(get: { settings.quietKinds.contains(kind) }, set: { quiet in
+            if quiet { settings.quietKinds.insert(kind) } else { settings.quietKinds.remove(kind) }
+        })
+    }
+
     var body: some View {
         Form {
             Section("Activities") {
                 ForEach(Self.configurable, id: \.0) { kind, detail in
-                    Toggle(isOn: Binding(get: { settings.enabledKinds.contains(kind) }, set: { on in
-                        if on { settings.enabledKinds.insert(kind) } else { settings.enabledKinds.remove(kind) }
-                    })) {
+                    HStack(spacing: 12) {
                         VStack(alignment: .leading) { Text(kind.displayName); Text(detail).font(.caption).foregroundStyle(.secondary) }
+                        Spacer(minLength: 8)
+                        Picker("", selection: quietBinding(kind)) {
+                            Text("Pop Up").tag(false)
+                            Text("Quiet").tag(true)
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .fixedSize()
+                        .disabled(!settings.enabledKinds.contains(kind))
+                        .help("Quiet: updates the Island without opening it or taking over.")
+                        .accessibilityLabel("\(kind.displayName) presentation")
+                        Toggle("", isOn: Binding(get: { settings.enabledKinds.contains(kind) }, set: { on in
+                            if on { settings.enabledKinds.insert(kind) } else { settings.enabledKinds.remove(kind) }
+                        }))
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .accessibilityLabel(kind.displayName)
                     }
                 }
             }
@@ -216,6 +237,7 @@ private struct SearchSettings: View {
                     }
                 }
             }
+            if settings.experimentalFeatures { AISection(settings: settings) }
         }
         .formStyle(.grouped)
     }
@@ -239,12 +261,13 @@ private struct SearchSettings: View {
     }
 }
 
-private struct AISettings: View {
+/// Search › AI answers (Experimental; was its own pane).
+private struct AISection: View {
     @Bindable var settings: IslandSettings
     @State private var key = ""
 
     var body: some View {
-        Form {
+        Section {
             Picker("Provider", selection: $settings.aiProvider) {
                 ForEach(AIProviderKind.allCases, id: \.self) { Text($0.displayName).tag($0) }
             }
@@ -258,11 +281,11 @@ private struct AISettings: View {
                         .onDisappear { save() }
                 }
             }
-            Section {} footer: {
-                Text("Ask questions from search with “ask …” or by ending with “?”. Island searches the web, fetches sources, and shows a short answer with citations. AI can only return text — it cannot run commands or change your system.")
-            }
+        } header: {
+            Text("AI Answers")
+        } footer: {
+            Text("Ask questions from search with “ask …” or by ending with “?”. Island searches the web, fetches sources, and shows a short answer with citations. AI can only return text — it cannot run commands or change your system.")
         }
-        .formStyle(.grouped)
     }
 
     private func save() { try? Keychain.set(key, account: settings.aiProvider.rawValue) }
