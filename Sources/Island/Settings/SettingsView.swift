@@ -15,7 +15,7 @@ struct SettingsView: View {
 
     enum Pane: String, CaseIterable, Identifiable {
         case general = "General", home = "Home", appearance = "Appearance", activities = "Activities", teleprompter = "Teleprompter"
-        case search = "Search", accessibility = "Accessibility", advanced = "Advanced"
+        case search = "Search", automation = "Automation", accessibility = "Accessibility", advanced = "Advanced"
         var id: String { rawValue }
         var symbol: String {
             switch self {
@@ -25,6 +25,7 @@ struct SettingsView: View {
             case .activities: "square.stack.3d.up"
             case .teleprompter: "text.alignleft"
             case .search: "magnifyingglass"
+            case .automation: "bolt.horizontal"
             case .accessibility: "accessibility"
             case .advanced: "wrench.and.screwdriver"
             }
@@ -33,7 +34,7 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationSplitView {
-            List(Pane.allCases, selection: $pane) { p in
+            List(Pane.allCases.filter { $0 != .automation || settings.experimentalFeatures }, selection: $pane) { p in
                 Label(p.rawValue, systemImage: p.symbol).tag(p)
             }
             .navigationSplitViewColumnWidth(170)
@@ -46,6 +47,7 @@ struct SettingsView: View {
                 case .activities: ActivitySettings(settings: settings, env: env)
                 case .teleprompter: TeleprompterSettings(settings: settings, env: env)
                 case .search: SearchSettings(settings: settings, env: env)
+                case .automation: AutomationSettings(env: env)
                 case .accessibility: AccessibilitySettings(settings: settings, env: env)
                 case .advanced: AdvancedSettings(settings: settings, env: env)
                 }
@@ -53,6 +55,7 @@ struct SettingsView: View {
             .navigationTitle(pane.rawValue)
         }
         .frame(minWidth: 720, minHeight: 500)
+        .onChange(of: settings.experimentalFeatures) { _, on in if !on, pane == .automation { pane = .advanced } }
     }
 }
 

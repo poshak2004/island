@@ -155,7 +155,8 @@ final class AppEnvironment {
 
     /// The Island shows when enabled, unless a full-screen app is in front and the user asked to hide then.
     private func updateWindowVisibility() {
-        let hiddenForFullScreen = settings.hideInFullScreen && fullScreen.isFullScreen
+        // A running teleprompter stays: a full-screen video call is exactly when a presenter needs it.
+        let hiddenForFullScreen = settings.hideInFullScreen && fullScreen.isFullScreen && !teleprompter.isActive
         if settings.islandEnabled, !hiddenForFullScreen { window.show() } else { window.hide() }
     }
 
@@ -232,6 +233,7 @@ extension AppEnvironment {
         teleprompter.onSessionChange = { [weak self] active in
             guard let self else { return }
             self.updateCaptureVisibility()
+            self.updateWindowVisibility()
             if active { self.island.expand() } else { self.island.collapse() }
         }
         island.onPointerChange = { [weak self] inside in
