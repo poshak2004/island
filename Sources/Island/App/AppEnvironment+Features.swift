@@ -105,6 +105,8 @@ final class FeatureHub {
             switch action {
             case .presentIsland(let s): env.commands.perform(.ui(.presentTransient(seconds: s)), origin: .automation)
             case .playSound(let name): NSSound(named: NSSound.Name(name))?.play()
+            case .openURL(let url): run(.openURL(url), origin: .automation)
+            case .openApp(let name): run(.openApplication(name: name), origin: .automation)
             case .showEvent(let symbol, let title):
                 env.manager.submit(.upsert(Activity(id: "automation.\(UUID().uuidString)", kind: .notification, priority: .normal,
                                                     content: .event(SystemEventActivity(symbol: symbol, title: title)),
