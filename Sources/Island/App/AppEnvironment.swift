@@ -18,6 +18,7 @@ final class AppEnvironment {
     let updates: UpdateService
     let shelf: ShelfService
     let fileDrags = FileDragWatcher()
+    let fullScreen = FullScreenWatcher()
     let shortcuts = ShortcutsCatalog()
     let home: HomeModel
     let media: MediaService
@@ -76,13 +77,15 @@ final class AppEnvironment {
 
         display.selection = settings.display
         display.onChange = { [weak self] g in self?.geometryChanged(g) }
+        fullScreen.screenFrame = { [weak self] in self?.island.geometry?.screen.frame }
+        fullScreen.onChange = { [weak self] _ in self?.updateWindowVisibility() }
         geometryChanged(display.geometry)
         applySettings()
         observeSettings()
     }
 
     func start(providers: Bool = true) {
-        if settings.islandEnabled { window.show() }
+        updateWindowVisibility()
         if providers {
             DispatchQueue.main.asyncAfter(deadline: .now() + Self.updateCheckDelay) { [weak self] in
                 self?.updates.checkIfDue()
@@ -143,6 +146,13 @@ final class AppEnvironment {
         island.updateGeometry(g)
         search.compactHeight = island.metrics.compactHeight
         window.reposition()
+        fullScreen.evaluate()
+    }
+
+    /// The Island shows when enabled, unless a full-screen app is in front and the user asked to hide then.
+    private func updateWindowVisibility() {
+        let hiddenForFullScreen = settings.hideInFullScreen && fullScreen.isFullScreen
+        if settings.islandEnabled, !hiddenForFullScreen { window.show() } else { window.hide() }
     }
 
     private func handleUI(_ c: IslandUICommand) {
@@ -166,7 +176,8 @@ final class AppEnvironment {
         island.settingsChanged()
         if display.selection != settings.display { display.selection = settings.display }
         window.reposition()
-        if settings.islandEnabled { window.show() } else { window.hide() }
+        if settings.hideInFullScreen { fullScreen.start() } else { fullScreen.stop() }
+        updateWindowVisibility()
         syncProviders()
         if providersRunning { features.configure() }
         updateCaptureVisibility()
@@ -181,6 +192,7 @@ final class AppEnvironment {
             _ = settings.islandScale
             _ = settings.cornerRadius
             _ = settings.islandEnabled
+            _ = settings.hideInFullScreen
             _ = settings.searchEnabled
             _ = settings.searchShortcut
             _ = settings.islandShortcut
