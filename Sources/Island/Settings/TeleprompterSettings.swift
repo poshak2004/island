@@ -10,6 +10,9 @@ struct TeleprompterSettings: View {
     @State private var notice: String?
     @State private var info: String?
     @State private var dropTargeted = false
+    @State private var confirmingClear = false
+    /// Short scripts clear at once; longer ones ask first (there's no undo once it's saved).
+    static let confirmClearAboveWords = 20
 
     private var wordCount: Int { ScriptMatcher.normalize(settings.teleprompterScript).filter { !$0.isEmpty }.count }
     private var readingTime: String {
@@ -37,6 +40,17 @@ struct TeleprompterSettings: View {
                     Text(wordCount == 0 ? "Type, paste or drop a .txt or .md file." : "\(wordCount) words · about \(readingTime)")
                         .font(.caption).foregroundStyle(.secondary)
                     Spacer()
+                    Button("Clear", role: .destructive) {
+                        if wordCount > Self.confirmClearAboveWords { confirmingClear = true } else { clearScript() }
+                    }
+                    .disabled(settings.teleprompterScript.isEmpty)
+                    .help("Remove the whole script.")
+                    .confirmationDialog("Clear the script?", isPresented: $confirmingClear) {
+                        Button("Clear Script", role: .destructive) { clearScript() }
+                        Button("Cancel", role: .cancel) {}
+                    } message: {
+                        Text("All \(wordCount) words will be removed. This can't be undone.")
+                    }
                     Button("Open File…") { openFile() }
                         .help("Load a plain text or Markdown file. You can also drop one onto the script.")
                     Button("Paste from Clipboard") { pasteClipboard() }
@@ -99,6 +113,12 @@ struct TeleprompterSettings: View {
         notice = nil
         info = nil
         settings.teleprompterScript = String(text.prefix(TeleprompterScript.maxCharacters))
+    }
+
+    private func clearScript() {
+        settings.teleprompterScript = ""
+        notice = nil
+        info = "Script cleared."
     }
 
     private func openFile() {

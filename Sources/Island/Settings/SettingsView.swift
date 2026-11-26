@@ -17,6 +17,33 @@ struct SettingsView: View {
         case general = "General", home = "Home", appearance = "Appearance", activities = "Activities", teleprompter = "Teleprompter"
         case search = "Search", automation = "Automation", accessibility = "Accessibility", advanced = "Advanced"
         var id: String { rawValue }
+        /// System Settings–style colour for the pane's icon tile.
+        var tint: Color {
+            switch self {
+            case .general, .advanced: Color(nsColor: .systemGray)
+            case .home: Color(nsColor: .systemBlue)
+            case .appearance: Color(nsColor: .systemPurple)
+            case .activities: Color(nsColor: .systemOrange)
+            case .teleprompter: Color(nsColor: .systemMint)
+            case .search: Color(nsColor: .systemIndigo)
+            case .automation: Color(nsColor: .systemYellow)
+            case .accessibility: Color(nsColor: .systemBlue)
+            }
+        }
+        /// One line under the pane's title.
+        var summary: String {
+            switch self {
+            case .general: "Startup, updates, display and how the Island responds."
+            case .home: "Your pins and suggestions on Home."
+            case .appearance: "Glass, size and shape of the Island."
+            case .activities: "What shows in the Island, and whether it pops up."
+            case .teleprompter: "Your script, reading speed and calls."
+            case .search: "What \(IslandShortcut.defaultSearch.display) finds, and how."
+            case .automation: "Rules that act on Island events."
+            case .accessibility: "Motion, transparency and contrast."
+            case .advanced: "Experimental features, developer tools and reset."
+            }
+        }
         var symbol: String {
             switch self {
             case .general: "gearshape"
@@ -35,11 +62,18 @@ struct SettingsView: View {
     var body: some View {
         NavigationSplitView {
             List(Pane.allCases.filter { $0 != .automation || settings.experimentalFeatures }, selection: $pane) { p in
-                Label(p.rawValue, systemImage: p.symbol).tag(p)
+                Label {
+                    Text(p.rawValue)
+                } icon: {
+                    PaneIcon(pane: p, size: 20)
+                }
+                .tag(p)
             }
-            .navigationSplitViewColumnWidth(170)
+            .navigationSplitViewColumnWidth(190)
         } detail: {
-            Group {
+            VStack(spacing: 0) {
+                PaneHeader(pane: pane)
+                Group {
                 switch pane {
                 case .general: GeneralSettings(settings: settings, env: env)
                 case .home: HomeSettings(settings: settings, env: env)
@@ -51,10 +85,10 @@ struct SettingsView: View {
                 case .accessibility: AccessibilitySettings(settings: settings, env: env)
                 case .advanced: AdvancedSettings(settings: settings, env: env)
                 }
+                }
             }
-            .navigationTitle(pane.rawValue)
         }
-        .frame(minWidth: 720, minHeight: 500)
+        .frame(minWidth: 760, minHeight: 540)
         .onChange(of: settings.experimentalFeatures) { _, on in if !on, pane == .automation { pane = .advanced } }
     }
 }
@@ -98,6 +132,7 @@ private struct AppearanceSettings: View {
     @Bindable var settings: IslandSettings
     var body: some View {
         Form {
+            Section { IslandPreview(settings: settings) }
             Section {
                 LabeledContent("Glass intensity") {
                     HStack { Slider(value: $settings.glassIntensity, in: 0...1); Text("\(Int(settings.glassIntensity * 100))%").monospacedDigit().frame(width: 40) }
@@ -375,14 +410,23 @@ struct ShortcutRecorder: View {
 @MainActor
 final class SettingsWindowController {
     private var window: NSWindow?
+
+    static let contentSize = NSSize(width: 820, height: 600)
+
+    static func makeWindow(_ root: SettingsView) -> NSWindow {
+        let w = NSWindow(contentViewController: NSHostingController(rootView: root))
+        w.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+        w.title = "Island Settings"
+        w.toolbarStyle = .unified
+        w.isReleasedWhenClosed = false
+        w.setContentSize(contentSize)
+        return w
+    }
     func show(env: AppEnvironment) {
         if window == nil {
-            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 760, height: 520), styleMask: [.titled, .closable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
-            w.title = "Island Settings"
-            w.titlebarAppearsTransparent = true
-            w.toolbarStyle = .unified
-            w.isReleasedWhenClosed = false
-            w.contentView = NSHostingView(rootView: SettingsView(settings: env.settings, env: env))
+            // A hosting *controller* lets SwiftUI manage the toolbar and safe areas, so content never
+            // scrolls under the title bar (a bare NSHostingView in a full-size-content window did).
+            let w = Self.makeWindow(SettingsView(settings: env.settings, env: env))
             w.center()
             window = w
         }
@@ -423,3 +467,117 @@ private struct UpdatesRow: View {
         }
     }
 }
+
+// MARK: - Pane chrome (System Settings style)
+
+/// A pane's icon: a white glyph on a coloured rounded square, like System Settings.
+struct PaneIcon: View {
+    let pane: SettingsView.Pane
+    var size: CGFloat
+
+    var body: some View {
+        Image(systemName: pane.symbol)
+            .font(.system(size: size * 0.55, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: size, height: size)
+            .background(
+                RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
+                    .fill(pane.tint.gradient)
+            )
+            .accessibilityHidden(true)
+    }
+}
+
+/// The top of every pane: its icon, title and what it's for.
+private struct PaneHeader: View {
+    let pane: SettingsView.Pane
+
+    var body: some View {
+        HStack(spacing: 14) {
+            PaneIcon(pane: pane, size: 44)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(pane.rawValue).font(.title2.weight(.semibold))
+                Text(pane.summary).font(.callout).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 18)
+        .padding(.bottom, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+    }
+}
+
+/// Appearance › a live, to-scale sketch of the Island over a wallpaper, so each slider shows its effect.
+private struct IslandPreview: View {
+    @Bindable var settings: IslandSettings
+    @State private var expanded = true
+
+    private static let notch = CGSize(width: 90, height: 16)
+
+    var body: some View {
+        VStack(spacing: 10) {
+            ZStack(alignment: .top) {
+                LinearGradient(colors: [Color(nsColor: .systemIndigo), Color(nsColor: .systemPink), Color(nsColor: .systemOrange)],
+                               startPoint: .topLeading, endPoint: .bottomTrailing)
+                island
+                    .padding(.top, 0)
+                    .animation(.spring(duration: 0.35, bounce: 0.15), value: expanded)
+                    .animation(.smooth(duration: 0.2), value: settings.glassIntensity)
+            }
+            .frame(height: 150)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            Picker("Preview", selection: $expanded) {
+                Text("Compact").tag(false)
+                Text("Expanded").tag(true)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(width: 220)
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Island preview")
+    }
+
+    private var scale: CGFloat { CGFloat(settings.islandScale) }
+
+    @ViewBuilder private var island: some View {
+        let size = expanded ? CGSize(width: 250 * scale, height: 82 * scale) : CGSize(width: 150 * scale, height: Self.notch.height)
+        let radius = expanded ? CGFloat(settings.cornerRadius) * 0.55 * scale : Self.notch.height / 2
+        let glassy = expanded || settings.compactGlass
+        let shape = UnevenRoundedRectangle(bottomLeadingRadius: radius, bottomTrailingRadius: radius, style: .continuous)
+        ZStack {
+            shape.fill(.ultraThinMaterial).opacity(glassy ? 1 : 0)
+            shape.fill(Color.black.opacity(glassy ? 1 - settings.glassIntensity * 0.45 : 1))
+            content(expanded: expanded).padding(.horizontal, 12)
+        }
+        .frame(width: size.width, height: size.height)
+        .environment(\.colorScheme, .dark)
+    }
+
+    @ViewBuilder private func content(expanded: Bool) -> some View {
+        if expanded {
+            HStack(spacing: 10) {
+                RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color(nsColor: .systemPink).gradient)
+                    .frame(width: 34 * scale, height: 34 * scale)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Midnight City").font(.system(size: 11 * scale, weight: .semibold)).foregroundStyle(.white)
+                    Text("M83").font(.system(size: 10 * scale)).foregroundStyle(.white.opacity(0.7))
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "pause.fill").font(.system(size: 12 * scale, weight: .semibold)).foregroundStyle(.white)
+            }
+            .padding(.top, Self.notch.height)
+        } else {
+            HStack {
+                Image(systemName: "music.note").font(.system(size: 8, weight: .bold)).foregroundStyle(.white)
+                if settings.compactShowsTitle { Text("Midnight City").font(.system(size: 7, weight: .semibold)).foregroundStyle(.white).lineLimit(1) }
+                Spacer()
+                Image(systemName: "waveform").font(.system(size: 8, weight: .bold)).foregroundStyle(Color(nsColor: .systemPink))
+            }
+        }
+    }
+}
+

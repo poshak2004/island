@@ -62,6 +62,8 @@ final class DebugRemote {
                 case "dump": DebugRemote.dump(env)
                 case "settings": env.commands.perform(.openSettings)
                 case "snapsettings": SettingsSnapshotter.renderAll(env: env)
+                case let c where c.hasPrefix("snapwindow:"):
+                    SettingsSnapshotter.renderWindow(env: env, paneName: String(c.dropFirst("snapwindow:".count)))
                 case let c where c.hasPrefix("snapisland:"):
                     SettingsSnapshotter.renderIsland(env: env, name: String(c.dropFirst("snapisland:".count)))
                 case "debugpanel": env.showDebugPanel()
@@ -166,6 +168,22 @@ enum SettingsSnapshotter {
 
     /// DEBUG: draws the live Island window's view tree to a PNG (the glass material itself isn't drawn,
     /// so the background shows as clear; content, layout and text are exact).
+    /// DEBUG: the real Settings window (title bar and toolbar included), offscreen, to check layout.
+    static func renderWindow(env: AppEnvironment, paneName: String) {
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let pane = SettingsView.Pane.allCases.first { $0.rawValue.lowercased() == paneName.lowercased() } ?? .general
+        let w = SettingsWindowController.makeWindow(SettingsView(settings: env.settings, env: env, initialPane: pane))
+        w.setFrameOrigin(NSPoint(x: -10_000, y: -10_000))
+        w.orderFront(nil)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.6))
+        defer { w.orderOut(nil) }
+        guard let frame = w.contentView?.superview,
+              let rep = frame.bitmapImageRepForCachingDisplay(in: frame.bounds) else { return }
+        frame.cacheDisplay(in: frame.bounds, to: rep)
+        try? rep.representation(using: .png, properties: [:])?
+            .write(to: directory.appendingPathComponent("window-\(pane.rawValue.lowercased()).png"))
+    }
+
     static func renderIsland(env: AppEnvironment, name: String) {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         guard let view = env.window.panel.contentView,
