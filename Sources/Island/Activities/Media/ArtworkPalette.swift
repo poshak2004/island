@@ -1,4 +1,5 @@
 import AppKit
+import IslandCore
 
 /// Extracts two vivid accent colours from album artwork (cached per artwork id). Used to tint the
 /// equalizer like the iPhone does. Falls back to a "voice" gradient (pink → violet → blue).
@@ -18,6 +19,19 @@ enum ArtworkPalette {
         let c = extract(image) ?? voice
         if cache.count > 64 { cache.removeAll() }
         cache[key] = c
+        return c
+    }
+
+    private static var placeholderCache: [String: [NSColor]] = [:]
+
+    /// Muted gradient stops for the no-artwork tile (see `ArtworkPlaceholder`), cached per seed.
+    static func placeholder(seed: String) -> [NSColor] {
+        if let c = placeholderCache[seed] { return c }
+        let c = ArtworkPlaceholder.gradient(seed: seed).map {
+            NSColor(srgbRed: CGFloat($0.red), green: CGFloat($0.green), blue: CGFloat($0.blue), alpha: 1)
+        }
+        if placeholderCache.count > 64 { placeholderCache.removeAll() }
+        placeholderCache[seed] = c
         return c
     }
 

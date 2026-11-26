@@ -11,6 +11,8 @@ func runAll() async -> Int32 {
     registerRegressionTests()
     registerAirPodsTests()
     registerTeleprompterTests()
+    registerScriptImportTests()
+    registerArtworkPlaceholderTests()
     registerShelfTests()
     registerHomeTests()
     registerSpringTests()
