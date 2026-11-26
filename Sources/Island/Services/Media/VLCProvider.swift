@@ -9,37 +9,37 @@ final class VLCProvider: MediaProvider {
     let displayName = "VLC"
     var onUpdate: ((MediaActivity?) -> Void)?
     private var lifecycle: AppLifecycleObserver?
-    private var pollTask: Task<Void, Never>?
+    private var activation: AppActivationObserver?
+    private lazy var loop = PollLoop(interval: { [weak self] in self?.interval ?? Self.idleInterval },
+                                     body: { [weak self] in await self?.poll() })
     private var last: MediaActivity?
-    /// Poll fast only while something plays; paused or idle VLC is checked rarely (each poll spawns osascript).
+    /// Poll fast while something plays or VLC is in front; otherwise VLC is checked rarely
+    /// (each poll spawns osascript).
     static let playingInterval: TimeInterval = 3
+    static let frontmostInterval: TimeInterval = 4
     static let idleInterval: TimeInterval = 15
-    private var interval: TimeInterval { last?.playbackState == .playing ? Self.playingInterval : Self.idleInterval }
+    private var interval: TimeInterval {
+        if last?.playbackState == .playing { return Self.playingInterval }
+        return AppActivationObserver.isFrontmost(bundleID) ? Self.frontmostInterval : Self.idleInterval
+    }
 
     func start() {
         lifecycle = AppLifecycleObserver(bundleID: bundleID, onLaunch: { [weak self] in self?.startPolling() },
                                          onTerminate: { [weak self] in self?.stopPolling() })
+        activation = AppActivationObserver(bundleID: bundleID) { [weak self] in self?.loop.pollNow() }
         if isRunning { startPolling() }
     }
 
     func stop() {
         lifecycle = nil
+        activation = nil
         stopPolling()
     }
 
-    private func startPolling() {
-        guard pollTask == nil else { return }
-        pollTask = Task { [weak self] in
-            while !Task.isCancelled {
-                await self?.poll()
-                try? await Task.sleep(nanoseconds: UInt64((self?.interval ?? Self.idleInterval) * 1_000_000_000))
-            }
-        }
-    }
+    private func startPolling() { loop.start() }
 
     private func stopPolling() {
-        pollTask?.cancel()
-        pollTask = nil
+        loop.stop()
         last = nil
         onUpdate?(nil)
     }

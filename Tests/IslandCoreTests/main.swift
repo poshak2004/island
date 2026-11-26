@@ -5,6 +5,7 @@ func runAll() async -> Int32 {
     registerActivityManagerTests()
     registerPresentationTests()
     registerDisplayTests()
+    registerFullScreenTests()
     registerSettingsTests()
     registerFeatureTests()
     registerRegressionTests()

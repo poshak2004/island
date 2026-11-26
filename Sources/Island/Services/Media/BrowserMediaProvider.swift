@@ -17,12 +17,19 @@ final class BrowserMediaProvider: MediaProvider {
     private(set) var lastError: String?
 
     private var lifecycle: AppLifecycleObserver?
-    private var pollTask: Task<Void, Never>?
+    private var activation: AppActivationObserver?
+    private lazy var loop = PollLoop(interval: { [weak self] in self?.interval ?? Self.idleInterval },
+                                     body: { [weak self] in await self?.poll() })
     private var last: MediaActivity?
-    /// Each poll runs a script in the browser: fast while media plays, slow otherwise.
+    /// Each poll runs a script in the browser: fast while media plays or while you're using the browser
+    /// (so resuming a paused video shows up quickly), slow otherwise.
     static let playingInterval: TimeInterval = 4
+    static let frontmostInterval: TimeInterval = 4
     static let idleInterval: TimeInterval = 15
-    private var interval: TimeInterval { last?.playbackState == .playing ? Self.playingInterval : Self.idleInterval }
+    private var interval: TimeInterval {
+        if last?.playbackState == .playing { return Self.playingInterval }
+        return AppActivationObserver.isFrontmost(bundleID) ? Self.frontmostInterval : Self.idleInterval
+    }
     private var location: (window: Int, tab: Int)?
 
     init(bundleID: String, appName: String, engine: Engine) {
@@ -44,27 +51,21 @@ final class BrowserMediaProvider: MediaProvider {
     func start() {
         lifecycle = AppLifecycleObserver(bundleID: bundleID, onLaunch: { [weak self] in self?.startPolling() },
                                          onTerminate: { [weak self] in self?.stopPolling() })
+        // Switching to the browser is the moment you're likely to resume a video: look right away.
+        activation = AppActivationObserver(bundleID: bundleID) { [weak self] in self?.loop.pollNow() }
         if isRunning { startPolling() }
     }
 
     func stop() {
         lifecycle = nil
+        activation = nil
         stopPolling()
     }
 
-    private func startPolling() {
-        guard pollTask == nil else { return }
-        pollTask = Task { [weak self] in
-            while !Task.isCancelled {
-                await self?.poll()
-                try? await Task.sleep(nanoseconds: UInt64((self?.interval ?? Self.idleInterval) * 1_000_000_000))
-            }
-        }
-    }
+    private func startPolling() { loop.start() }
 
     private func stopPolling() {
-        pollTask?.cancel()
-        pollTask = nil
+        loop.stop()
         if last != nil { last = nil; onUpdate?(nil) }
     }
 
