@@ -222,9 +222,14 @@ private struct SearchSettings: View {
 
     /// macOS refuses a hot key another app already owns; say so instead of failing silently.
     private var shortcutConflict: String? {
-        guard settings.searchEnabled, settings.islandEnabled,
-              let error = env.features.hotKey?.lastError, error != noErr else { return nil }
-        return "\(settings.searchShortcut.display) is already used by another app or macOS. Pick another shortcut."
+        guard settings.searchEnabled, settings.islandEnabled else { return nil }
+        if let error = env.features.hotKey?.lastError, error != noErr {
+            return "\(settings.searchShortcut.display) is already used by another app or macOS. Pick another shortcut."
+        }
+        let running = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
+        let owners = ShortcutConflicts.likelyOwners(of: settings.searchShortcut, running: running)
+        guard !owners.isEmpty else { return nil }
+        return "\(owners.joined(separator: " and ")) also uses \(settings.searchShortcut.display) by default. If search doesn't open, change one of the shortcuts."
     }
 
     private func providerToggle(_ id: String, _ title: String) -> some View {

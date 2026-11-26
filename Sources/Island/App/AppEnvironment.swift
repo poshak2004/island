@@ -39,7 +39,7 @@ final class AppEnvironment {
         island = IslandViewModel(manager: manager, settings: settings, accessibility: accessibility, commands: commands)
         window = IslandWindowController(model: island, search: search)
         // Quiet mode applies to everything that arrives, whatever produced it.
-        let submit: (ActivityUpdate) -> Void = { [manager, settings] in manager.submit(settings.quietMode ? $0.quieted() : $0) }
+        let submit: (ActivityUpdate) -> Void = { [manager, settings] in manager.submit($0.quieted(when: settings.isQuiet)) }
         timers = TimerService(bus: bus, sink: submit)
         teleprompter = TeleprompterService(settings: settings, sink: submit)
         updates = UpdateService(settings: settings)
@@ -54,7 +54,11 @@ final class AppEnvironment {
         calendar = CalendarProvider(sink: submit)
         clipboard = ClipboardProvider(sink: submit)
         let router = commands
-        airPods = AirPodsConnectionAnimator(sink: submit, ui: { router.perform(.ui($0)) },
+        // Devices set to Quiet still update the compact Island, but the banner doesn't open it.
+        airPods = AirPodsConnectionAnimator(sink: submit, ui: { [settings] command in
+            if case .presentTransient = command, settings.isQuiet(.device) { return }
+            router.perform(.ui(command))
+        },
                                             reduceMotion: { [weak island] in island?.reduceMotion ?? false })
         island.airPods = airPods
         devices.onAirPodsConnected = { [weak airPods] in airPods?.deviceConnected(name: $0) }
@@ -212,6 +216,7 @@ extension AppEnvironment {
         }
         teleprompter.isPointerInside = { [weak self] in self?.island.mouseInside ?? false }
         observeTeleprompterVisibility()
+        observeShelfVisibility()
         teleprompter.onSessionChange = { [weak self] active in
             guard let self else { return }
             self.updateCaptureVisibility()
@@ -234,6 +239,16 @@ extension AppEnvironment {
                 Announcer.announce(activity)
             }
         }
+    }
+
+    /// Opening the Island onto the shelf re-checks its files, so a deleted one never lingers on screen.
+    private func observeShelfVisibility() {
+        let showing = withObservationTracking {
+            island.mode == .expanded && !island.showsHome && island.primary?.id == ShelfService.activityID
+        } onChange: { [weak self] in
+            DispatchQueue.main.async { self?.observeShelfVisibility() }
+        }
+        if showing { shelf.refreshForDisplay() }
     }
 
     /// The script only advances while you can see it: covered by another activity or collapsed, it pauses.
@@ -328,7 +343,7 @@ extension AppEnvironment {
         } else if confirmDrop {
             island.collapse()
             manager.select(id: ShelfService.activityID)
-            island.presentTransient(seconds: Self.shelfConfirmSeconds)
+            if !settings.isQuiet(.shelf) { island.presentTransient(seconds: Self.shelfConfirmSeconds) }
         } else if !island.mouseInside {
             island.collapse()
         }

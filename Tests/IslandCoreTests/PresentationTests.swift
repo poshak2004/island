@@ -262,6 +262,23 @@ func registerRegressionTests() {
         expect(r.isQuiet(.timer), "global quiet mode covers every kind")
     }
 
+    test(S, "per-activity quiet: only the chosen kinds are quieted") {
+        let battery = Activity(id: "b", kind: .battery, priority: .high, content: .event(SystemEventActivity(symbol: "x", title: "b")))
+        let timer = Activity(id: "t", kind: .timer, priority: .high, content: .event(SystemEventActivity(symbol: "x", title: "t")))
+        func priority(_ u: ActivityUpdate) -> ActivityPriority? { if case .upsert(let a) = u { return a.priority }; return nil }
+        let quiet: (ActivityKind) -> Bool = { $0 == .battery }
+        expectEqual(priority(ActivityUpdate.upsert(battery).quieted(when: quiet)), .normal)
+        expectEqual(priority(ActivityUpdate.upsert(timer).quieted(when: quiet)), .high)
+    }
+
+    test(S, "names running apps that claim ⌥Space by default") {
+        let running: Set<String> = ["com.raycast.macos", "com.apple.Safari"]
+        expectEqual(ShortcutConflicts.likelyOwners(of: .defaultSearch, running: running), ["Raycast"])
+        let other = IslandShortcut(keyCode: 49, carbonModifiers: 0x1000, display: "⌃Space")
+        expectEqual(ShortcutConflicts.likelyOwners(of: other, running: running), [])
+        expectEqual(ShortcutConflicts.likelyOwners(of: .defaultSearch, running: ["com.apple.Safari"]), [])
+    }
+
     test(S, "the open-Island shortcut defaults to ⌃⌥I and persists") {
         let d = UserDefaults(suiteName: "island.tests.\(UUID().uuidString)")!
         let s = IslandSettings(defaults: d)

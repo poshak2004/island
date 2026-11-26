@@ -85,6 +85,11 @@ final class ShelfService {
 
     /// The Island closed: an empty, revealed shelf goes away again.
     /// Also drops files that vanished while the shelf was on screen, so the next open is current.
+    /// The shelf is about to be looked at: drop files deleted or moved since it was last shown.
+    func refreshForDisplay() {
+        if pruneMissing() { publish() }
+    }
+
     func conceal() {
         let pruned = pruneMissing()
         guard revealed || pruned else { return }
