@@ -22,6 +22,10 @@ public struct AutomationRule: Codable, Identifiable, Equatable, Sendable {
         case presentIsland(seconds: Double)
         case showEvent(symbol: String, title: String)
         case playSound(name: String)
+        /// Opens a web page in the default browser. Only http and https addresses are accepted by the editor.
+        case openURL(URL)
+        /// Opens an installed app by name.
+        case openApp(name: String)
     }
 
     public var id: UUID
@@ -49,6 +53,21 @@ public struct AutomationRule: Codable, Identifiable, Equatable, Sendable {
 
     init(name: String, trigger: Trigger, enabled: Bool = true, actions: [Action]) {
         self.init(id: UUID(), name: name, enabled: enabled, trigger: trigger, conditions: [], actions: actions)
+    }
+}
+
+extension AutomationRule {
+    private enum CodingKeys: String, CodingKey { case id, name, enabled, trigger, conditions, actions }
+
+    /// Tolerant decoding: rules saved before `enabled` or `conditions` existed load as enabled with no conditions.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(id: try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID(),
+                  name: try c.decode(String.self, forKey: .name),
+                  enabled: try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? true,
+                  trigger: try c.decode(Trigger.self, forKey: .trigger),
+                  conditions: try c.decodeIfPresent([Condition].self, forKey: .conditions) ?? [],
+                  actions: try c.decode([Action].self, forKey: .actions))
     }
 }
 
