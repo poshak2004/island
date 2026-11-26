@@ -196,39 +196,50 @@ struct ExpandedLayout: View {
     /// The AirPods banner has no header: just the notch band, then its one row.
     private var isBanner: Bool { model.expandedStyle == .airPods }
 
+    /// One header for every view (HIG › Live Activities: keep relative placement consistent):
+    /// context on the leading side of the notch, the activity tabs on the trailing side.
     @ViewBuilder private var header: some View {
         if isBanner {
             Color.clear
-        } else if model.isShowingHome, model.primary == nil, let home = model.home {
-            HomeHeader(home: home, notchWidth: metrics.notchSize.width)
         } else {
-            activityHeader
-        }
-    }
-
-    private var activityHeader: some View {
-        HStack(spacing: 0) {
-            HStack(spacing: 6) {
-                if model.showsHome { Text("Home").lineLimit(1) } else if let p = model.primary { Text(title(for: p)).lineLimit(1) }
+            HStack(spacing: 0) {
+                headerContext
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, 22)
+                Color.clear.frame(width: metrics.notchSize.width)
+                ActivitySwitcher(model: model)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.trailing, 22)
             }
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(IslandPalette.secondaryText)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, 22)
-            Color.clear.frame(width: metrics.notchSize.width)
-            ActivitySwitcher(model: model)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .padding(.trailing, 22) // matches the 22 pt leading margin
         }
     }
 
-    /// Media names its source; the teleprompter names its script. Other content says what it is.
+    @ViewBuilder private var headerContext: some View {
+        if model.isShowingHome {
+            HomeClock()
+        } else if let p = model.primary {
+            Text(title(for: p))
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(IslandPalette.secondaryText)
+                .lineLimit(1)
+        }
+    }
+
+    /// What the content is: media names its source, the teleprompter its script; anything else its kind.
     private func title(for a: Activity) -> String {
         switch a.content {
         case .media(let m): return m.sourceName
         case .teleprompter(let t): return t.script.title.isEmpty ? "Teleprompter" : t.script.title
         case .shelf: return "File Shelf"
-        default: return ""
+        case .timer: return "Timer"
+        case .download: return "Download"
+        case .recording: return "Recording"
+        case .battery: return "Battery"
+        case .network: return "Network"
+        case .device: return "Device"
+        case .calendar: return "Calendar"
+        case .clipboard: return "Clipboard"
+        case .event: return "Island"
         }
     }
 }

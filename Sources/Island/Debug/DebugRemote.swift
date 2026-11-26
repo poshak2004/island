@@ -62,6 +62,8 @@ final class DebugRemote {
                 case "dump": DebugRemote.dump(env)
                 case "settings": env.commands.perform(.openSettings)
                 case "snapsettings": SettingsSnapshotter.renderAll(env: env)
+                case let c where c.hasPrefix("snapisland:"):
+                    SettingsSnapshotter.renderIsland(env: env, name: String(c.dropFirst("snapisland:".count)))
                 case "debugpanel": env.showDebugPanel()
                 case "quicktimer": env.timers.handle(.start(duration: 3, label: "Quick"))
                 case "prompter":
@@ -160,6 +162,16 @@ enum SettingsSnapshotter {
             }
         }
         NSLog("Island: settings snapshots in %@", directory.path)
+    }
+
+    /// DEBUG: draws the live Island window's view tree to a PNG (the glass material itself isn't drawn,
+    /// so the background shows as clear; content, layout and text are exact).
+    static func renderIsland(env: AppEnvironment, name: String) {
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        guard let view = env.window.panel.contentView,
+              let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
+        view.cacheDisplay(in: view.bounds, to: rep)
+        try? rep.representation(using: .png, properties: [:])?.write(to: directory.appendingPathComponent("island-\(name).png"))
     }
 
     private static func write(_ view: some View, name: String) {
