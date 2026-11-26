@@ -42,7 +42,10 @@ enum ShelfThumbnails {
     }
 
     private static func key(_ url: URL, _ pointSize: CGFloat, _ scale: CGFloat) -> NSString {
-        "\(url.path)|\(Int(pointSize * scale))" as NSString
+        // The modification date is part of the key, so editing a file on the shelf refreshes its preview.
+        let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate)?
+            .timeIntervalSinceReferenceDate ?? 0
+        return "\(url.path)|\(Int(pointSize * scale))|\(Int(modified))" as NSString
     }
 }
 
