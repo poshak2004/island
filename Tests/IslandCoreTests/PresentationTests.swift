@@ -245,6 +245,23 @@ func registerRegressionTests() {
         expectEqual(IslandSettings(defaults: d).quietMode, true)
     }
 
+    test(S, "hide-in-full-screen (on) and per-activity quiet kinds (none) persist") {
+        let d = UserDefaults(suiteName: "island.tests.\(UUID().uuidString)")!
+        let s = IslandSettings(defaults: d)
+        expectEqual(s.hideInFullScreen, true)
+        expectEqual(s.quietKinds, [])
+        expect(!s.isQuiet(.battery))
+        s.hideInFullScreen = false
+        s.quietKinds = [.battery, .network]
+        let r = IslandSettings(defaults: d)
+        expectEqual(r.hideInFullScreen, false)
+        expectEqual(r.quietKinds, [.battery, .network])
+        expect(r.isQuiet(.battery) && !r.isQuiet(.timer))
+        r.quietKinds = []
+        r.quietMode = true
+        expect(r.isQuiet(.timer), "global quiet mode covers every kind")
+    }
+
     test(S, "the open-Island shortcut defaults to ⌃⌥I and persists") {
         let d = UserDefaults(suiteName: "island.tests.\(UUID().uuidString)")!
         let s = IslandSettings(defaults: d)
