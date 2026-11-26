@@ -80,12 +80,14 @@ struct TimerExpanded: View {
                 .islandMatched("icon-\(id)", in: ns)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(timer.label.isEmpty ? "Timer" : timer.label)
-                        .font(.system(size: 12, weight: .medium)).foregroundStyle(IslandPalette.secondaryText)
+                    // The header already says "Timer"; only a name you gave it is worth repeating here.
+                    if !timer.label.isEmpty, timer.label != "Timer" {
+                        Text(timer.label)
+                            .font(.system(size: 12, weight: .medium)).foregroundStyle(IslandPalette.secondaryText)
+                    }
                     Text(isFinished ? "Done" : DurationFormatter.clock(timer.remaining(at: now).rounded(.up)))
                         .font(.system(size: 34, weight: .semibold, design: .rounded).monospacedDigit())
                         .foregroundStyle(IslandPalette.timer)
-                        
                 }
                 .accessibilityElement(children: .combine)
                 Spacer(minLength: 0)

@@ -18,21 +18,21 @@ struct HomeView: View {
         }
     }
 
+    /// Search, your pins in one row, and one line for what matters now. Everything else (adding pins,
+    /// Settings) is a right-click away — the Island shows content, not controls.
     private var content: some View {
         VStack(alignment: .leading, spacing: 12) {
             searchBar
             if adding {
                 HomePicker(home: home) { adding = false }
             } else {
-                // One timeline around both sections, so an empty suggestions row leaves no gap.
-                TimelineView(.everyMinute) { ctx in
-                    let suggestions = home.suggestions(at: ctx.date)
-                    VStack(alignment: .leading, spacing: 12) {
-                        if !suggestions.isEmpty { suggested(suggestions) }
-                        pinned
-                    }
-                }
+                pinsRow
+                TimelineView(.everyMinute) { ctx in nowLine(at: ctx.date) }
             }
+        }
+        .contextMenu {
+            Button("Add to Home…") { adding = true }
+            Button("Settings…") { send(.openSettings) }
         }
         .onChange(of: active) { _, isActive in if !isActive { adding = false } }
     }
@@ -66,58 +66,56 @@ struct HomeView: View {
             .buttonStyle(PressableStyle())
             .accessibilityLabel(searchPrompt)
             .accessibilityHint("Shortcut \(home.settings.searchShortcut.display)")
-            IslandIconButton(symbol: "gearshape.fill", size: 13, label: "Settings") { send(.openSettings) }
         }
     }
 
     // MARK: Suggested
 
-    private func suggested(_ items: [HomeSuggestion]) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            SectionLabel("Suggested")
-            HStack(spacing: 6) {
-                ForEach(items) { s in
-                    Button { home.open(s) } label: {
-                        Label(s.title, systemImage: s.symbol)
-                            .font(.system(size: 12, weight: .semibold))
-                            .lineLimit(1)
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 11)
-                            .frame(height: 30)
-                            .background(Capsule().fill(.white.opacity(0.12)))
-                            .contentShape(Capsule())
-                    }
-                    .buttonStyle(PressableStyle())
-                    .help(s.title)
-                }
+    /// One line: the most useful suggestion (a meeting to join, a download to keep), else the status.
+    @ViewBuilder private func nowLine(at date: Date) -> some View {
+        if let s = home.suggestions(at: date).first {
+            Button { home.open(s) } label: {
+                Label(s.title, systemImage: s.symbol)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 11)
+                    .frame(height: 28)
+                    .background(Capsule().fill(.white.opacity(0.12)))
+                    .contentShape(Capsule())
             }
+            .buttonStyle(PressableStyle())
+            .help(s.title)
+        } else if let status = home.statusLine(at: date) {
+            Text(status)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(IslandPalette.secondaryText)
+                .lineLimit(1)
         }
     }
 
-    // MARK: Pinned
+    // MARK: Pins
 
-    private var pinned: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            SectionLabel("Pinned")
-            if home.pins.isEmpty {
-                Text("Pin apps, Shortcuts, websites and files here. Right-click any search result and choose Pin to Home.")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(IslandPalette.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            LazyVGrid(columns: HomeTileStyle.columns, alignment: .leading, spacing: 8) {
-                ForEach(home.pins) { item in
-                    HomeTile(item: item) { home.open(item) }
-                        .contextMenu {
-                            Button("Open") { home.open(item) }
-                            Button("Move Left") { home.move(item, by: -1) }.disabled(home.pins.first == item)
-                            Button("Move Right") { home.move(item, by: 1) }.disabled(home.pins.last == item)
-                            Divider()
-                            Button("Remove from Home") { home.unpin(item) }
-                        }
-                }
-                if home.pins.count < HomePins.maxPins {
-                    AddTile { adding = true }
+    /// Every pin in one row (scrolls sideways past what fits, so none is hidden). An empty Home offers
+    /// one clear next step instead of an empty grid.
+    @ViewBuilder private var pinsRow: some View {
+        if home.pins.isEmpty {
+            IslandPillButton(title: "Add to Home", symbol: "plus", tint: .white) { adding = true }
+                .help("Pin apps, Shortcuts, timers and more. You can also right-click a search result.")
+        } else {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 4) {
+                    ForEach(home.pins) { item in
+                        HomeTile(item: item) { home.open(item) }
+                            .contextMenu {
+                                Button("Open") { home.open(item) }
+                                Button("Move Left") { home.move(item, by: -1) }.disabled(home.pins.first == item)
+                                Button("Move Right") { home.move(item, by: 1) }.disabled(home.pins.last == item)
+                                Divider()
+                                Button("Remove from Home") { home.unpin(item) }
+                                Button("Add to Home…") { adding = true }
+                            }
+                    }
                 }
             }
         }
@@ -217,7 +215,8 @@ enum HomeApps {
 // MARK: - Tiles
 
 enum HomeTileStyle {
-    static let width: CGFloat = 62
+    /// Wide enough for "Teleprompter" at 11 pt, so every label is the same size (no shrinking).
+    static let width: CGFloat = 74
     static let icon: CGFloat = 40
     static let columns = Array(repeating: GridItem(.fixed(width), spacing: 4, alignment: .top), count: 6)
 
@@ -295,27 +294,6 @@ struct HomeTile: View {
     }
 }
 
-private struct AddTile: View {
-    let action: () -> Void
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 5) {
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
-                    .foregroundStyle(.white.opacity(0.35))
-                    .overlay(Image(systemName: "plus").font(.system(size: 16, weight: .semibold)).foregroundStyle(.white.opacity(0.8)))
-                    .frame(width: HomeTileStyle.icon, height: HomeTileStyle.icon)
-                Text("Add").font(.system(size: 11, weight: .medium)).foregroundStyle(.white.opacity(0.7))
-            }
-            .frame(width: HomeTileStyle.width)
-            .padding(.vertical, 4)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(PressableStyle())
-        .accessibilityLabel("Add to Home")
-    }
-}
-
 private struct SectionLabel: View {
     let text: String
     init(_ text: String) { self.text = text }
@@ -326,31 +304,19 @@ private struct SectionLabel: View {
 }
 
 /// Time and the next thing on your calendar, in the row beside the notch.
-struct HomeHeader: View {
-    let home: HomeModel
-    let notchWidth: CGFloat
-
+/// Home's header context: the time and date, beside the notch. (The status line now lives in Home's
+/// body, so the header has the same shape everywhere: context left, tabs right.)
+struct HomeClock: View {
     var body: some View {
         TimelineView(.everyMinute) { ctx in
-            HStack(spacing: 0) {
-                HStack(spacing: 6) {
-                    Text(ctx.date, format: .dateTime.hour().minute()).foregroundStyle(.white)
-                    Text(ctx.date, format: .dateTime.weekday(.abbreviated).day())
-                        .foregroundStyle(IslandPalette.secondaryText)
-                }
-                .font(.system(size: 12, weight: .semibold).monospacedDigit())
-                .lineLimit(1)
-                .fixedSize()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, 22)
-                Color.clear.frame(width: notchWidth)
-                Text(home.statusLine(at: ctx.date) ?? "")
-                    .font(.system(size: 12, weight: .semibold))
+            HStack(spacing: 6) {
+                Text(ctx.date, format: .dateTime.hour().minute()).foregroundStyle(.white)
+                Text(ctx.date, format: .dateTime.weekday(.abbreviated).day())
                     .foregroundStyle(IslandPalette.secondaryText)
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .padding(.trailing, 22)
             }
+            .font(.system(size: 12, weight: .semibold).monospacedDigit())
+            .lineLimit(1)
+            .fixedSize()
             .accessibilityElement(children: .combine)
         }
     }
