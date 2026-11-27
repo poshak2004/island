@@ -46,7 +46,9 @@ public final class IslandSettings {
     // Appearance
     public var glassIntensity: Double = 0.6 { didSet { save() } }
     public var islandScale: Double = 1.0 { didSet { save() } }
-    public var cornerRadius: Double = 32 { didSet { save() } }
+    public static let defaultCornerRadius: Double = 44
+    /// Expanded corners. Rounder by default; the compact Island is always a full pill.
+    public var cornerRadius: Double = defaultCornerRadius { didSet { save() } }
     /// Compact Island background: see-through glass (default) or solid black like the hardware notch.
     /// Off by default: Apple's Dynamic Island is opaque black so it reads as part of the hardware.
     public var compactGlass = false { didSet { save() } }
@@ -212,7 +214,7 @@ public final class IslandSettings {
         if let v = s.display { display = v }
         if let v = s.glassIntensity { glassIntensity = min(1, max(0, v)) }
         if let v = s.islandScale { islandScale = min(1.3, max(0.8, v)) }
-        if let v = s.cornerRadius { cornerRadius = min(48, max(12, v)) }
+        if let v = s.cornerRadius { cornerRadius = min(64, max(16, v)) }
         if let v = s.compactGlass { compactGlass = v }
         if let v = s.compactShowsTitle { compactShowsTitle = v }
         if let v = s.collapseDelay { collapseDelay = min(3, max(0.1, v)) }

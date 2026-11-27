@@ -36,9 +36,11 @@ struct IslandShape: Shape {
         p.move(to: CGPoint(x: rect.minX, y: rect.minY))
         p.addQuadCurve(to: CGPoint(x: rect.minX + ear, y: rect.minY + ear), control: CGPoint(x: rect.minX + ear, y: rect.minY))
         p.addLine(to: CGPoint(x: rect.minX + ear, y: rect.maxY - br))
-        p.addQuadCurve(to: CGPoint(x: rect.minX + ear + br, y: rect.maxY), control: CGPoint(x: rect.minX + ear, y: rect.maxY))
+        // True circular arcs (not quadratic curves, which read flatter); br stays > 0 so every state has
+        // the same path elements and Core Animation can interpolate between them.
+        p.addArc(tangent1End: CGPoint(x: rect.minX + ear, y: rect.maxY), tangent2End: CGPoint(x: rect.minX + ear + br, y: rect.maxY), radius: max(br, 0.5))
         p.addLine(to: CGPoint(x: rect.maxX - ear - br, y: rect.maxY))
-        p.addQuadCurve(to: CGPoint(x: rect.maxX - ear, y: rect.maxY - br), control: CGPoint(x: rect.maxX - ear, y: rect.maxY))
+        p.addArc(tangent1End: CGPoint(x: rect.maxX - ear, y: rect.maxY), tangent2End: CGPoint(x: rect.maxX - ear, y: rect.maxY - br), radius: max(br, 0.5))
         p.addLine(to: CGPoint(x: rect.maxX - ear, y: rect.minY + ear))
         p.addQuadCurve(to: CGPoint(x: rect.maxX, y: rect.minY), control: CGPoint(x: rect.maxX - ear, y: rect.minY))
         p.closeSubpath()

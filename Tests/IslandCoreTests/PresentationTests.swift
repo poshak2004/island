@@ -145,7 +145,7 @@ func registerPresentationTests() {
 
     test(S, "metrics: clamps invalid input") {
         let m = IslandMetrics(notchSize: CGSize(width: -10, height: CGFloat.nan), hasNotch: true, scale: CGFloat.infinity, expandedCornerRadius: 999)
-        expect(m.notchSize.width >= 80 && m.scale == 1 && m.expandedCornerRadius == 48)
+        expect(m.notchSize.width >= 80 && m.scale == 1 && m.expandedCornerRadius == IslandMetrics.maxCornerRadius)
     }
 
     test(S, "metrics: compact stays centred on the notch with secondaries; nothing is squeezed") {
@@ -277,6 +277,14 @@ func registerRegressionTests() {
         let other = IslandShortcut(keyCode: 49, carbonModifiers: 0x1000, display: "⌃Space")
         expectEqual(ShortcutConflicts.likelyOwners(of: other, running: running), [])
         expectEqual(ShortcutConflicts.likelyOwners(of: .defaultSearch, running: ["com.apple.Safari"]), [])
+    }
+
+    test(S, "compact is a full pill; expanded corners can be very round") {
+        let m = IslandMetrics(notchSize: CGSize(width: 180, height: 32), hasNotch: true, expandedCornerRadius: 60)
+        expectEqual(m.bottomCornerRadius(mode: .compact, height: 32), 16)
+        expectEqual(m.bottomCornerRadius(mode: .expanded, height: 200), 60)
+        expectEqual(m.bottomCornerRadius(mode: .expanded, height: 90), 45) // never more than half the height
+        expectEqual(IslandMetrics(notchSize: CGSize(width: 180, height: 32), hasNotch: true, expandedCornerRadius: 99).expandedCornerRadius, 64)
     }
 
     test(S, "the open-Island shortcut defaults to ⌃⌥I and persists") {

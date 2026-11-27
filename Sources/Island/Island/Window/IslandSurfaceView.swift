@@ -130,6 +130,7 @@ final class IslandSurfaceView: NSView {
         animate(glassView.layer, "opacity", to: glassOpacity, with: fade)
         updateGlassHidden(visible: glassOpacity > 0, after: fade?.duration ?? 0)
         animate(edgeLayer, "opacity", to: edgeOpacity, with: fade)
+        if motion == .open || motion == .close { fadeInContent(opening: motion == .open) }
     }
 
     /// A copy of `template` whose initial velocity continues the morph already on screen, so
@@ -174,6 +175,20 @@ final class IslandSurfaceView: NSView {
         let work = DispatchWorkItem { [weak self] in self?.glassView.isHidden = true }
         glassHideWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    /// The content arrives with a fade timed to the shape, in the render server alongside the outline.
+    private func fadeInContent(opening: Bool) {
+        guard let layer = contentHost.layer else { return }
+        let a = CABasicAnimation(keyPath: "opacity")
+        a.fromValue = 0
+        a.toValue = 1
+        a.duration = (opening ? 0.26 : 0.18) / max(0.5, min(2, speed))
+        a.beginTime = CACurrentMediaTime() + (opening ? 0.05 : 0.08) // a beat for the glass to grow first
+        a.fillMode = .backwards
+        a.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        a.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: 120, preferred: 120)
+        layer.add(a, forKey: "contentFade")
     }
 
     /// Keeps a near-zero remaining distance from turning a modest speed into a violent kick.

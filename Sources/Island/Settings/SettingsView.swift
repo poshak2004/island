@@ -167,7 +167,7 @@ struct AppearanceSettings: View {
                     .help("Off matches Apple's Dynamic Island: solid black, so it reads as part of the hardware.")
                 Toggle("Show song title in compact Island", isOn: $settings.compactShowsTitle)
                 LabeledContent("Corner radius") {
-                    HStack { Slider(value: $settings.cornerRadius, in: 12...48); Text("\(Int(settings.cornerRadius))").monospacedDigit().frame(width: 40) }
+                    HStack { Slider(value: $settings.cornerRadius, in: 16...64); Text("\(Int(settings.cornerRadius))").monospacedDigit().frame(width: 40) }
                 }
             } footer: {
                 Text("Glass intensity controls how see-through the Island is. The empty Island stays black so it disappears into the notch. Liquid Glass is used on macOS 26 and later.")
