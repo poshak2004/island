@@ -78,7 +78,8 @@ private extension View {
     func layer(shown: Bool, reduceMotion: Bool) -> some View {
         self
             .opacity(shown ? 1 : 0)
-            .scaleEffect(shown || reduceMotion ? 1 : 0.97, anchor: .top)
+            .scaleEffect(shown || reduceMotion ? 1 : 0.94, anchor: .top)
+            .blur(radius: shown || reduceMotion ? 0 : 4) // arrives into focus, like the iPhone's island
             .allowsHitTesting(shown)
             .accessibilityHidden(!shown)
             .animation(shown ? IslandAnimation.contentIn(reduceMotion: reduceMotion)

@@ -38,6 +38,8 @@ final class IslandViewModel {
     @ObservationIgnored private var collapseWork: DispatchWorkItem?
     @ObservationIgnored private var transientWork: DispatchWorkItem?
     @ObservationIgnored private var animationEndWork: DispatchWorkItem?
+    /// Heights measured while the Island was mid-morph, applied when it settles.
+    @ObservationIgnored private var pendingHeights: [ExpandedStyle: CGFloat] = [:]
     @ObservationIgnored private(set) var mouseInside = false
     @ObservationIgnored var onModeChange: ((IslandMode) -> Void)?
     /// Pointer entered/left the Island (after debouncing). Features use it, e.g. pause-on-hover.
@@ -135,8 +137,21 @@ final class IslandViewModel {
     func reportContentHeight(_ h: CGFloat, for style: ExpandedStyle) {
         guard h.isFinite, h > 0 else { return }
         let rounded = h.rounded(.up)
-        if let old = measuredContent[style], abs(old - rounded) < 1 { return }
+        if let old = measuredContent[style], abs(old - rounded) < 1 { pendingHeights[style] = nil; return }
+        // Mid-morph, content swapping in and out reports in-between heights; retargeting the spring on
+        // each one made the outline wobble. Keep the latest and apply it once the motion settles.
+        if isAnimating, measuredContent[style] != nil {
+            pendingHeights[style] = rounded
+            return
+        }
         withAnimation(morphAnimation) { measuredContent[style] = rounded }
+    }
+
+    private func applyPendingHeights() {
+        guard !pendingHeights.isEmpty else { return }
+        let pending = pendingHeights
+        pendingHeights = [:]
+        withAnimation(morphAnimation) { for (style, h) in pending { measuredContent[style] = h } }
     }
 
     // MARK: Input
@@ -265,7 +280,10 @@ final class IslandViewModel {
     private func markAnimating() {
         isAnimating = true
         animationEndWork?.cancel()
-        let work = DispatchWorkItem { [weak self] in self?.isAnimating = false }
+        let work = DispatchWorkItem { [weak self] in
+            self?.isAnimating = false
+            self?.applyPendingHeights()
+        }
         animationEndWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6 / settings.animationSpeed, execute: work)
     }

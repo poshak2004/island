@@ -70,6 +70,10 @@ struct GeneralPane: View {
             }
             Section {
                 Toggle("Open when the pointer is over the notch", isOn: $settings.hoverExpansion)
+                Toggle(isOn: $settings.hapticFeedback) {
+                    Text("Haptic feedback")
+                    Text("A light tap on the trackpad when the Island opens.")
+                }
                 Toggle(isOn: $settings.quietMode) {
                     Text("Quiet mode")
                     Text("Nothing opens by itself. Critical alerts still show.")
@@ -186,6 +190,7 @@ struct AdvancedPane: View {
 /// selection, and the window resizes to the pane. The last pane reopens next time.
 final class SettingsTabController: NSTabViewController {
     static let lastPaneKey = "island.settings.lastPane"
+    static let resizeDuration: TimeInterval = 0.32
 
     override func tabView(_ tabView: NSTabView, didSelect item: NSTabViewItem?) {
         super.tabView(tabView, didSelect: item)
@@ -198,7 +203,14 @@ final class SettingsTabController: NSTabViewController {
         var frame = window.frame
         frame.origin.y += frame.height - content.height
         frame.size = content.size
-        window.setFrame(frame, display: true, animate: window.isVisible)
+        guard window.isVisible else { return window.setFrame(frame, display: true) }
+        // A smooth ease-out (fast start, long soft landing) rather than the default linear resize.
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = Self.resizeDuration
+            ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0.9, 0.25, 1)
+            ctx.allowsImplicitAnimation = true
+            window.animator().setFrame(frame, display: true)
+        }
     }
 }
 
@@ -209,7 +221,7 @@ final class SettingsWindowController {
     static func makeWindow(settings: IslandSettings, env: AppEnvironment, selecting pane: SettingsPane? = nil) -> NSWindow {
         let tabs = SettingsTabController()
         tabs.tabStyle = .toolbar
-        tabs.transitionOptions = [.allowUserInteraction] // no crossfade: the pane swaps, the window resizes
+        tabs.transitionOptions = [.crossfade, .allowUserInteraction] // panes dissolve while the window resizes
         for p in SettingsPane.allCases {
             let host = NSHostingController(rootView: AnyView(p.view(settings: settings, env: env)
                 .frame(width: SettingsPane.width, height: p.height)))
