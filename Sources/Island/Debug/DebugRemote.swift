@@ -226,7 +226,8 @@ enum MorphSampler {
         let timer = Timer(timeInterval: 1.0 / 120, repeats: true) { _ in
             MainActor.assumeIsolated {
                 guard let s = env.window.surface.presentedOutlineSize else { return }
-                lines.append(String(format: "%.4f %.2f %.2f", CACurrentMediaTime() - start, s.height, s.width))
+                lines.append(String(format: "%.4f %.2f %.2f %.4f", CACurrentMediaTime() - start, s.height, s.width,
+                                    env.window.surface.presentedDimming))
             }
         }
         RunLoop.main.add(timer, forMode: .common)

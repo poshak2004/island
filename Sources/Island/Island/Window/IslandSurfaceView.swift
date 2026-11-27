@@ -126,10 +126,13 @@ final class IslandSurfaceView: NSView {
         animate(backgroundMask, "path", to: outline, with: morph)
         animate(edgeLayer, "path", to: outline, with: morph)
         animate(contentMask, "path", to: clip, with: morph)
-        animate(tintLayer, "opacity", to: tint, with: fade)
-        animate(glassView.layer, "opacity", to: glassOpacity, with: fade)
+        // Shading never bounces: an overshooting spring on the dimming/glass opacity made a dark band
+        // pulse across the Island while it moved. Same timing as the shape, critically damped.
+        let shade = fade.map(Self.critical)
+        animate(tintLayer, "opacity", to: tint, with: shade)
+        animate(glassView.layer, "opacity", to: glassOpacity, with: shade)
         updateGlassHidden(visible: glassOpacity > 0, after: fade?.duration ?? 0)
-        animate(edgeLayer, "opacity", to: edgeOpacity, with: fade)
+        animate(edgeLayer, "opacity", to: edgeOpacity, with: shade)
         if motion == .open || motion == .close { fadeInContent(opening: motion == .open) }
     }
 
@@ -212,6 +215,15 @@ final class IslandSurfaceView: NSView {
         layer.add(a, forKey: key)
     }
 
+    /// The same response as `template`, with no overshoot (damping ratio 1).
+    private static func critical(_ template: CASpringAnimation) -> CASpringAnimation {
+        let a = template.copy() as! CASpringAnimation
+        a.damping = 2 * (a.stiffness * a.mass).squareRoot()
+        a.initialVelocity = 0
+        a.duration = a.settlingDuration
+        return a
+    }
+
     private func spring(for motion: Motion) -> CASpringAnimation {
         let a = CASpringAnimation()
         if reduceMotion {
@@ -241,6 +253,7 @@ final class IslandSurfaceView: NSView {
 
     #if DEBUG
     /// QA: the outline's on-screen (presentation) size right now, to measure motion smoothness.
+    var presentedDimming: Float { tintLayer.presentation()?.opacity ?? tintLayer.opacity }
     var presentedOutlineSize: CGSize? {
         (backgroundMask.presentation()?.path ?? backgroundMask.path)?.boundingBoxOfPath.size
     }
