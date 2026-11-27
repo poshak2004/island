@@ -18,6 +18,7 @@ final class AppEnvironment {
     let updates: UpdateService
     let shelf: ShelfService
     let fileDrags = FileDragWatcher()
+    let fullScreen = FullScreenWatcher()
     let shortcuts = ShortcutsCatalog()
     let home: HomeModel
     let media: MediaService
@@ -39,7 +40,7 @@ final class AppEnvironment {
         island = IslandViewModel(manager: manager, settings: settings, accessibility: accessibility, commands: commands)
         window = IslandWindowController(model: island, search: search)
         // Quiet mode applies to everything that arrives, whatever produced it.
-        let submit: (ActivityUpdate) -> Void = { [manager, settings] in manager.submit(settings.quietMode ? $0.quieted() : $0) }
+        let submit: (ActivityUpdate) -> Void = { [manager, settings] in manager.submit($0.quieted(when: settings.isQuiet)) }
         timers = TimerService(bus: bus, sink: submit)
         teleprompter = TeleprompterService(settings: settings, sink: submit)
         updates = UpdateService(settings: settings)
@@ -54,7 +55,11 @@ final class AppEnvironment {
         calendar = CalendarProvider(sink: submit)
         clipboard = ClipboardProvider(sink: submit)
         let router = commands
-        airPods = AirPodsConnectionAnimator(sink: submit, ui: { router.perform(.ui($0)) },
+        // Devices set to Quiet still update the compact Island, but the banner doesn't open it.
+        airPods = AirPodsConnectionAnimator(sink: submit, ui: { [settings] command in
+            if case .presentTransient = command, settings.isQuiet(.device) { return }
+            router.perform(.ui(command))
+        },
                                             reduceMotion: { [weak island] in island?.reduceMotion ?? false })
         island.airPods = airPods
         devices.onAirPodsConnected = { [weak airPods] in airPods?.deviceConnected(name: $0) }
@@ -76,13 +81,15 @@ final class AppEnvironment {
 
         display.selection = settings.display
         display.onChange = { [weak self] g in self?.geometryChanged(g) }
+        fullScreen.screenFrame = { [weak self] in self?.island.geometry?.screen.frame }
+        fullScreen.onChange = { [weak self] _ in self?.updateWindowVisibility() }
         geometryChanged(display.geometry)
         applySettings()
         observeSettings()
     }
 
     func start(providers: Bool = true) {
-        if settings.islandEnabled { window.show() }
+        updateWindowVisibility()
         if providers {
             DispatchQueue.main.asyncAfter(deadline: .now() + Self.updateCheckDelay) { [weak self] in
                 self?.updates.checkIfDue()
@@ -143,6 +150,14 @@ final class AppEnvironment {
         island.updateGeometry(g)
         search.compactHeight = island.metrics.compactHeight
         window.reposition()
+        fullScreen.evaluate()
+    }
+
+    /// The Island shows when enabled, unless a full-screen app is in front and the user asked to hide then.
+    private func updateWindowVisibility() {
+        // A running teleprompter stays: a full-screen video call is exactly when a presenter needs it.
+        let hiddenForFullScreen = settings.hideInFullScreen && fullScreen.isFullScreen && !teleprompter.isActive
+        if settings.islandEnabled, !hiddenForFullScreen { window.show() } else { window.hide() }
     }
 
     private func handleUI(_ c: IslandUICommand) {
@@ -166,7 +181,8 @@ final class AppEnvironment {
         island.settingsChanged()
         if display.selection != settings.display { display.selection = settings.display }
         window.reposition()
-        if settings.islandEnabled { window.show() } else { window.hide() }
+        if settings.hideInFullScreen { fullScreen.start() } else { fullScreen.stop() }
+        updateWindowVisibility()
         syncProviders()
         if providersRunning { features.configure() }
         updateCaptureVisibility()
@@ -181,6 +197,7 @@ final class AppEnvironment {
             _ = settings.islandScale
             _ = settings.cornerRadius
             _ = settings.islandEnabled
+            _ = settings.hideInFullScreen
             _ = settings.searchEnabled
             _ = settings.searchShortcut
             _ = settings.islandShortcut
@@ -212,9 +229,11 @@ extension AppEnvironment {
         }
         teleprompter.isPointerInside = { [weak self] in self?.island.mouseInside ?? false }
         observeTeleprompterVisibility()
+        observeShelfVisibility()
         teleprompter.onSessionChange = { [weak self] active in
             guard let self else { return }
             self.updateCaptureVisibility()
+            self.updateWindowVisibility()
             if active { self.island.expand() } else { self.island.collapse() }
         }
         island.onPointerChange = { [weak self] inside in
@@ -234,6 +253,16 @@ extension AppEnvironment {
                 Announcer.announce(activity)
             }
         }
+    }
+
+    /// Opening the Island onto the shelf re-checks its files, so a deleted one never lingers on screen.
+    private func observeShelfVisibility() {
+        let showing = withObservationTracking {
+            island.mode == .expanded && !island.showsHome && island.primary?.id == ShelfService.activityID
+        } onChange: { [weak self] in
+            DispatchQueue.main.async { self?.observeShelfVisibility() }
+        }
+        if showing { shelf.refreshForDisplay() }
     }
 
     /// The script only advances while you can see it: covered by another activity or collapsed, it pauses.
@@ -328,7 +357,7 @@ extension AppEnvironment {
         } else if confirmDrop {
             island.collapse()
             manager.select(id: ShelfService.activityID)
-            island.presentTransient(seconds: Self.shelfConfirmSeconds)
+            if !settings.isQuiet(.shelf) { island.presentTransient(seconds: Self.shelfConfirmSeconds) }
         } else if !island.mouseInside {
             island.collapse()
         }

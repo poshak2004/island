@@ -46,7 +46,9 @@ public final class IslandSettings {
     // Appearance
     public var glassIntensity: Double = 0.6 { didSet { save() } }
     public var islandScale: Double = 1.0 { didSet { save() } }
-    public var cornerRadius: Double = 32 { didSet { save() } }
+    public static let defaultCornerRadius: Double = 44
+    /// Expanded corners. Rounder by default; the compact Island is always a full pill.
+    public var cornerRadius: Double = defaultCornerRadius { didSet { save() } }
     /// Compact Island background: see-through glass (default) or solid black like the hardware notch.
     /// Off by default: Apple's Dynamic Island is opaque black so it reads as part of the hardware.
     public var compactGlass = false { didSet { save() } }
@@ -82,6 +84,12 @@ public final class IslandSettings {
     public var checkForUpdates = true { didSet { save() } }
     /// Nothing pops the Island open by itself and new events don't take over; critical alerts still do.
     public var quietMode = false { didSet { save() } }
+    /// Activities that update quietly (never open the Island by themselves, never take over).
+    public var quietKinds: Set<ActivityKind> = [] { didSet { save() } }
+    /// Step aside while a full-screen app (video, presentation, game) is in front on the Island's display.
+    public var hideInFullScreen = true { didSet { save() } }
+
+    public func isQuiet(_ kind: ActivityKind) -> Bool { quietMode || quietKinds.contains(kind) }
 
     public var effectiveWebSearch: Bool { experimentalFeatures && webSearchEnabled }
     public var effectiveAIProvider: AIProviderKind { experimentalFeatures ? aiProvider : .none }
@@ -159,6 +167,8 @@ public final class IslandSettings {
         var hasCompletedWelcome: Bool?
         var checkForUpdates: Bool?
         var quietMode: Bool?
+        var quietKinds: [ActivityKind]?
+        var hideInFullScreen: Bool?
         var aiModel: String?
         var forceReduceMotion: Bool?
         var forceReduceTransparency: Bool?
@@ -188,7 +198,7 @@ public final class IslandSettings {
                  hapticFeedback: hapticFeedback, enabledKinds: enabledKinds.map { $0 }.sorted { $0.rawValue < $1.rawValue },
                  browserMediaEnabled: browserMediaEnabled, searchEnabled: searchEnabled, searchShortcut: searchShortcut, islandShortcut: islandShortcut,
                  webSearchEnabled: webSearchEnabled, webSearchProviders: webSearchProviders.sorted(),
-                 fileSearchEnabled: fileSearchEnabled, aiProvider: aiProvider, experimentalFeatures: experimentalFeatures, hasCompletedWelcome: hasCompletedWelcome, checkForUpdates: checkForUpdates, quietMode: quietMode, aiModel: aiModel,
+                 fileSearchEnabled: fileSearchEnabled, aiProvider: aiProvider, experimentalFeatures: experimentalFeatures, hasCompletedWelcome: hasCompletedWelcome, checkForUpdates: checkForUpdates, quietMode: quietMode, quietKinds: quietKinds.map(\.rawValue).sorted().compactMap(ActivityKind.init(rawValue:)), hideInFullScreen: hideInFullScreen, aiModel: aiModel,
                  forceReduceMotion: forceReduceMotion, forceReduceTransparency: forceReduceTransparency,
                  forceHighContrast: forceHighContrast, debugMode: debugMode, performanceOverlay: performanceOverlay,
                  kindsRevision: Self.kindsRevision, teleprompterScript: teleprompterScript,
@@ -204,7 +214,7 @@ public final class IslandSettings {
         if let v = s.display { display = v }
         if let v = s.glassIntensity { glassIntensity = min(1, max(0, v)) }
         if let v = s.islandScale { islandScale = min(1.3, max(0.8, v)) }
-        if let v = s.cornerRadius { cornerRadius = min(48, max(12, v)) }
+        if let v = s.cornerRadius { cornerRadius = min(64, max(16, v)) }
         if let v = s.compactGlass { compactGlass = v }
         if let v = s.compactShowsTitle { compactShowsTitle = v }
         if let v = s.collapseDelay { collapseDelay = min(3, max(0.1, v)) }
@@ -232,6 +242,8 @@ public final class IslandSettings {
         if let v = s.hasCompletedWelcome { hasCompletedWelcome = v }
         if let v = s.checkForUpdates { checkForUpdates = v }
         if let v = s.quietMode { quietMode = v }
+        if let v = s.quietKinds { quietKinds = Set(v) }
+        if let v = s.hideInFullScreen { hideInFullScreen = v }
         if let v = s.experimentalFeatures { experimentalFeatures = v } else if let p = s.aiProvider, p != .none { experimentalFeatures = true }
         if let v = s.aiModel { aiModel = v }
         if let v = s.forceReduceMotion { forceReduceMotion = v }

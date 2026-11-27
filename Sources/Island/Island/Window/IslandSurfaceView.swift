@@ -19,6 +19,8 @@ final class IslandSurfaceView: NSView {
         var offsetX: CGFloat
         var glass: CGFloat          // 0 = solid black, 1 = full glass
         var clearGlass: Bool
+        /// Black layer between the glass and the content: 1 = solid, ~0.35 = Apple's clear-glass dim.
+        var dimming: CGFloat
         var visible: Bool
         var highContrast: Bool
     }
@@ -107,7 +109,7 @@ final class IslandSurfaceView: NSView {
         let canvas = CGRect(origin: .zero, size: bounds.size)
         let outline = shape(g, ears: true).path(in: canvas).cgPath
         let clip = shape(g, ears: false).path(in: canvas).cgPath
-        let tint: Float = g.visible ? Float(g.clearGlass ? 0.42 - g.glass * 0.2 : 1 - g.glass * 0.45) : 0
+        let tint: Float = g.visible ? Float(g.dimming) : 0
         let glassOpacity: Float = g.visible ? Float(min(1, g.glass * 1.6)) : 0
         let edgeOpacity: Float = g.visible ? Float(g.highContrast ? 1 : (g.glass > 0.001 ? 1 : 0)) : 0
         edgeLayer.strokeColor = g.highContrast ? NSColor.white.withAlphaComponent(0.85).cgColor : NSColor.white.withAlphaComponent(0.14 * g.glass).cgColor
@@ -124,10 +126,14 @@ final class IslandSurfaceView: NSView {
         animate(backgroundMask, "path", to: outline, with: morph)
         animate(edgeLayer, "path", to: outline, with: morph)
         animate(contentMask, "path", to: clip, with: morph)
-        animate(tintLayer, "opacity", to: tint, with: fade)
-        animate(glassView.layer, "opacity", to: glassOpacity, with: fade)
+        // Shading never bounces: an overshooting spring on the dimming/glass opacity made a dark band
+        // pulse across the Island while it moved. Same timing as the shape, critically damped.
+        let shade = fade.map(Self.critical)
+        animate(tintLayer, "opacity", to: tint, with: shade)
+        animate(glassView.layer, "opacity", to: glassOpacity, with: shade)
         updateGlassHidden(visible: glassOpacity > 0, after: fade?.duration ?? 0)
-        animate(edgeLayer, "opacity", to: edgeOpacity, with: fade)
+        animate(edgeLayer, "opacity", to: edgeOpacity, with: shade)
+        if motion == .open || motion == .close { fadeInContent(opening: motion == .open) }
     }
 
     /// A copy of `template` whose initial velocity continues the morph already on screen, so
@@ -174,6 +180,20 @@ final class IslandSurfaceView: NSView {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
+    /// The content arrives with a fade timed to the shape, in the render server alongside the outline.
+    private func fadeInContent(opening: Bool) {
+        guard let layer = contentHost.layer else { return }
+        let a = CABasicAnimation(keyPath: "opacity")
+        a.fromValue = 0
+        a.toValue = 1
+        a.duration = (opening ? 0.26 : 0.18) / max(0.5, min(2, speed))
+        a.beginTime = CACurrentMediaTime() + (opening ? 0.05 : 0.08) // a beat for the glass to grow first
+        a.fillMode = .backwards
+        a.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        a.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: 120, preferred: 120)
+        layer.add(a, forKey: "contentFade")
+    }
+
     /// Keeps a near-zero remaining distance from turning a modest speed into a violent kick.
     private static let maxRetargetVelocity: Double = 8
 
@@ -193,6 +213,15 @@ final class IslandSurfaceView: NSView {
         a.fromValue = from
         a.toValue = value
         layer.add(a, forKey: key)
+    }
+
+    /// The same response as `template`, with no overshoot (damping ratio 1).
+    private static func critical(_ template: CASpringAnimation) -> CASpringAnimation {
+        let a = template.copy() as! CASpringAnimation
+        a.damping = 2 * (a.stiffness * a.mass).squareRoot()
+        a.initialVelocity = 0
+        a.duration = a.settlingDuration
+        return a
     }
 
     private func spring(for motion: Motion) -> CASpringAnimation {
@@ -216,8 +245,19 @@ final class IslandSurfaceView: NSView {
         a.duration = a.settlingDuration
         a.fillMode = .backwards
         a.isRemovedOnCompletion = true
+        // Run at the display's full rate (120 Hz on ProMotion). Left to the default, the outline could
+        // step at 60 fps beside smoother content — the jitter people noticed.
+        a.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: 120, preferred: 120)
         return a
     }
+
+    #if DEBUG
+    /// QA: the outline's on-screen (presentation) size right now, to measure motion smoothness.
+    var presentedDimming: Float { tintLayer.presentation()?.opacity ?? tintLayer.opacity }
+    var presentedOutlineSize: CGSize? {
+        (backgroundMask.presentation()?.path ?? backgroundMask.path)?.boundingBoxOfPath.size
+    }
+    #endif
 
     private static let noImplicitActions: [String: CAAction] = [
         "path": NSNull(), "opacity": NSNull(), "bounds": NSNull(), "position": NSNull(), "frame": NSNull(),

@@ -27,7 +27,7 @@ public struct IslandMetrics: Equatable, Sendable {
         self.notchSize = CGSize(width: max(80, notchSize.width), height: max(18, notchSize.height))
         self.hasNotch = hasNotch
         self.scale = min(1.4, max(0.7, scale.isFinite ? scale : 1))
-        self.expandedCornerRadius = min(48, max(8, expandedCornerRadius))
+        self.expandedCornerRadius = min(Self.maxCornerRadius, max(8, expandedCornerRadius))
     }
 
     public var compactHeight: CGFloat { notchSize.height }
@@ -36,6 +36,7 @@ public struct IslandMetrics: Equatable, Sendable {
     /// Gap between the primary's glyph and a minimal: hairline divider plus breathing room either side.
     public var minimalSeparator: CGFloat { 9 * scale }
     public static let maxMinimals = 2
+    public static let maxCornerRadius: CGFloat = 64
 
     /// iPhone-sized wings: just enough for one glyph each side, so the Island covers as little of the
     /// menu bar as possible. `.wide` is used for short-lived events that need a few words.
@@ -119,7 +120,10 @@ public struct IslandMetrics: Equatable, Sendable {
 
     public func bottomCornerRadius(mode: IslandMode, height: CGFloat) -> CGFloat {
         switch mode {
-        case .idle, .compact: min(height / 2, max(8, compactHeight * 0.38))
+        // Idle matches the hardware notch's tight corners so it disappears into it; compact is a full
+        // pill, like Apple's Dynamic Island.
+        case .idle: min(height / 2, max(8, compactHeight * 0.38))
+        case .compact: height / 2
         case .expanded, .search: min(height / 2, expandedCornerRadius * scale)
         }
     }

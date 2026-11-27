@@ -50,8 +50,8 @@ func registerSettingsTests() {
         let s = IslandSettings(defaults: d)
         s.cornerRadius = 12
         s.resetToDefaults()
-        expectEqual(s.cornerRadius, 32)
-        expectEqual(IslandSettings(defaults: d).cornerRadius, 32)
+        expectEqual(s.cornerRadius, IslandSettings.defaultCornerRadius)
+        expectEqual(IslandSettings(defaults: d).cornerRadius, IslandSettings.defaultCornerRadius)
         d.removePersistentDomain(forName: suite)
     }
 }

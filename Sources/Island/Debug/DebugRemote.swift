@@ -62,6 +62,9 @@ final class DebugRemote {
                 case "dump": DebugRemote.dump(env)
                 case "settings": env.commands.perform(.openSettings)
                 case "snapsettings": SettingsSnapshotter.renderAll(env: env)
+                case "samplemorph": MorphSampler.run(env: env)
+                case let c where c.hasPrefix("snapwindow:"):
+                    SettingsSnapshotter.renderWindow(env: env, paneName: String(c.dropFirst("snapwindow:".count)))
                 case let c where c.hasPrefix("snapisland:"):
                     SettingsSnapshotter.renderIsland(env: env, name: String(c.dropFirst("snapisland:".count)))
                 case "debugpanel": env.showDebugPanel()
@@ -155,8 +158,9 @@ enum SettingsSnapshotter {
             let scratch = IslandSettings(defaults: suite)
             scratch.experimentalFeatures = experimental
             scratch.aiProvider = experimental ? .anthropic : .none
-            for pane in SettingsView.Pane.allCases {
-                let view = SettingsView(settings: scratch, env: env, initialPane: pane)
+            for pane in SettingsPane.allCases {
+                let view = pane.view(settings: scratch, env: env)
+                    .frame(width: SettingsPane.width, height: pane.height)
                     .environment(\.colorScheme, .dark)
                 write(view, name: "\(experimental ? "exp-on" : "exp-off")-\(pane.rawValue.lowercased())")
             }
@@ -166,6 +170,22 @@ enum SettingsSnapshotter {
 
     /// DEBUG: draws the live Island window's view tree to a PNG (the glass material itself isn't drawn,
     /// so the background shows as clear; content, layout and text are exact).
+    /// DEBUG: the real Settings window (title bar and toolbar included), offscreen, to check layout.
+    static func renderWindow(env: AppEnvironment, paneName: String) {
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let pane = SettingsPane.allCases.first { $0.rawValue.lowercased() == paneName.lowercased() } ?? .general
+        let w = SettingsWindowController.makeWindow(settings: env.settings, env: env, selecting: pane)
+        w.setFrameOrigin(NSPoint(x: -10_000, y: -10_000))
+        w.orderFront(nil)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.6))
+        defer { w.orderOut(nil) }
+        guard let frame = w.contentView?.superview,
+              let rep = frame.bitmapImageRepForCachingDisplay(in: frame.bounds) else { return }
+        frame.cacheDisplay(in: frame.bounds, to: rep)
+        try? rep.representation(using: .png, properties: [:])?
+            .write(to: directory.appendingPathComponent("window-\(pane.rawValue.lowercased()).png"))
+    }
+
     static func renderIsland(env: AppEnvironment, name: String) {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         guard let view = env.window.panel.contentView,
@@ -175,7 +195,7 @@ enum SettingsSnapshotter {
     }
 
     private static func write(_ view: some View, name: String) {
-        let size = NSSize(width: 760, height: 560)
+        let size = NSSize(width: 600, height: 640)
         let host = NSHostingView(rootView: view)
         host.frame = NSRect(origin: .zero, size: size)
         let window = NSWindow(contentRect: host.frame, styleMask: [.titled], backing: .buffered, defer: false)
@@ -190,6 +210,33 @@ enum SettingsSnapshotter {
         let data = rep.representation(using: .png, properties: [:])
         try? data?.write(to: directory.appendingPathComponent("\(name).png"))
         window.contentView = nil
+    }
+}
+
+/// DEBUG: samples the outline's presented size every ~8 ms through an open and a close, and writes
+/// "t height width" lines, so motion smoothness (monotonic? overshoot? steps?) can be measured.
+@MainActor
+enum MorphSampler {
+    static let file = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Caches/island-qa/morph-samples.txt")
+
+    static func run(env: AppEnvironment) {
+        var lines: [String] = []
+        let start = CACurrentMediaTime()
+        let timer = Timer(timeInterval: 1.0 / 120, repeats: true) { _ in
+            MainActor.assumeIsolated {
+                guard let s = env.window.surface.presentedOutlineSize else { return }
+                lines.append(String(format: "%.4f %.2f %.2f %.4f", CACurrentMediaTime() - start, s.height, s.width,
+                                    env.window.surface.presentedDimming))
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { env.island.expand() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { env.island.collapse() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.8) {
+            timer.invalidate()
+            try? lines.joined(separator: "\n").write(to: file, atomically: true, encoding: .utf8)
+        }
     }
 }
 

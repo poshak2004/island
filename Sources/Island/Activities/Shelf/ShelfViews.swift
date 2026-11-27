@@ -7,6 +7,7 @@ enum ShelfStyle {
     static let tint = Color(nsColor: .systemCyan)
     static let symbol = "tray.full.fill"
     static let tileWidth: CGFloat = 66
+    static let iconSize: CGFloat = 38
 
     static func label(_ s: ShelfActivity) -> String {
         s.items.count == 1 ? "1 file" : "\(s.items.count) files"
@@ -114,9 +115,7 @@ private struct ShelfTile: View {
 
     var body: some View {
         VStack(spacing: 4) {
-            Image(nsImage: ImageCache.fileIcon(path: item.url.path))
-                .resizable()
-                .frame(width: 38, height: 38)
+            ShelfThumbnailImage(url: item.url, size: ShelfStyle.iconSize)
             Text(item.name)
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.white)

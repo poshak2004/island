@@ -38,6 +38,8 @@ final class IslandViewModel {
     @ObservationIgnored private var collapseWork: DispatchWorkItem?
     @ObservationIgnored private var transientWork: DispatchWorkItem?
     @ObservationIgnored private var animationEndWork: DispatchWorkItem?
+    /// Heights measured while the Island was mid-morph, applied when it settles.
+    @ObservationIgnored private var pendingHeights: [ExpandedStyle: CGFloat] = [:]
     @ObservationIgnored private(set) var mouseInside = false
     @ObservationIgnored var onModeChange: ((IslandMode) -> Void)?
     /// Pointer entered/left the Island (after debouncing). Features use it, e.g. pause-on-hover.
@@ -69,7 +71,7 @@ final class IslandViewModel {
         IslandMetrics(
             notchSize: geometry?.notchSize ?? CGSize(width: DisplayResolver.virtualNotchWidth, height: 32),
             hasNotch: geometry?.hasNotch ?? false,
-            scale: settings.islandScale,
+            scale: 1, // designed size, locked: other sizes broke the layout's proportions
             expandedCornerRadius: settings.cornerRadius
         )
     }
@@ -92,9 +94,17 @@ final class IslandViewModel {
     }
 
 
+    // HIG › Settings: follow the system's accessibility settings rather than duplicate them. The
+    // force switches remain only for QA in debug builds.
+    #if DEBUG
     var reduceMotion: Bool { settings.forceReduceMotion || accessibility.reduceMotion }
     var reduceTransparency: Bool { settings.forceReduceTransparency || accessibility.reduceTransparency }
     var highContrast: Bool { settings.forceHighContrast || accessibility.increaseContrast }
+    #else
+    var reduceMotion: Bool { accessibility.reduceMotion }
+    var reduceTransparency: Bool { accessibility.reduceTransparency }
+    var highContrast: Bool { accessibility.increaseContrast }
+    #endif
 
     /// Everything the Core Animation surface needs to draw the current state.
     var surfaceGeometry: IslandSurfaceView.Geometry {
@@ -106,13 +116,20 @@ final class IslandViewModel {
         let rawGlass = reduceTransparency || (open && primaryPinsExpansion) ? 0 : (open || compactGlass ? settings.glassIntensity : 0)
         // Increase Contrast: keep a mostly dark backing so busy backgrounds can't wash out the text.
         let glass = highContrast ? min(rawGlass, Self.highContrastGlassCap) : rawGlass
+        // Clear Liquid Glass with Apple's dimming layer (~35% at full intensity) keeps the Island light
+        // and see-through while text stays legible; Increase Contrast keeps the denser regular glass.
+        let clear = glass > 0 && !highContrast && (open || compactGlass)
+        let dimming: CGFloat = glass == 0 ? 1 : (compactGlass && !open ? 0.42 - glass * 0.2
+            : clear ? 1 - glass * Self.clearGlassDimRange : 1 - glass * 0.45)
         return IslandSurfaceView.Geometry(
             width: size.width + 2 * ear, height: max(size.height, 0.5), earRadius: ear,
             bottomRadius: m.bottomCornerRadius(mode: mode, height: size.height), offsetX: horizontalOffset,
-            glass: glass, clearGlass: compactGlass, visible: mode != .idle || m.hasNotch, highContrast: highContrast)
+            glass: glass, clearGlass: clear, dimming: dimming, visible: mode != .idle || m.hasNotch, highContrast: highContrast)
     }
 
     static let highContrastGlassCap: CGFloat = 0.4
+    /// Full glass leaves 1 − 0.65 = 35% dimming: Apple's figure for clear glass over bright content.
+    static let clearGlassDimRange: CGFloat = 0.65
 
     var morphAnimation: Animation { IslandAnimation.morph(reduceMotion: reduceMotion, speed: settings.animationSpeed) }
 
@@ -127,8 +144,21 @@ final class IslandViewModel {
     func reportContentHeight(_ h: CGFloat, for style: ExpandedStyle) {
         guard h.isFinite, h > 0 else { return }
         let rounded = h.rounded(.up)
-        if let old = measuredContent[style], abs(old - rounded) < 1 { return }
+        if let old = measuredContent[style], abs(old - rounded) < 1 { pendingHeights[style] = nil; return }
+        // Mid-morph, content swapping in and out reports in-between heights; retargeting the spring on
+        // each one made the outline wobble. Keep the latest and apply it once the motion settles.
+        if isAnimating, measuredContent[style] != nil {
+            pendingHeights[style] = rounded
+            return
+        }
         withAnimation(morphAnimation) { measuredContent[style] = rounded }
+    }
+
+    private func applyPendingHeights() {
+        guard !pendingHeights.isEmpty else { return }
+        let pending = pendingHeights
+        pendingHeights = [:]
+        withAnimation(morphAnimation) { for (style, h) in pending { measuredContent[style] = h } }
     }
 
     // MARK: Input
@@ -257,7 +287,10 @@ final class IslandViewModel {
     private func markAnimating() {
         isAnimating = true
         animationEndWork?.cancel()
-        let work = DispatchWorkItem { [weak self] in self?.isAnimating = false }
+        let work = DispatchWorkItem { [weak self] in
+            self?.isAnimating = false
+            self?.applyPendingHeights()
+        }
         animationEndWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6 / settings.animationSpeed, execute: work)
     }

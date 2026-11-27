@@ -13,9 +13,11 @@ enum IslandAnimation {
     }
 
     /// Outline springs (also used by `IslandSurfaceView`).
-    static let open = SpringSpec(response: 0.46, dampingRatio: 0.74)   // soft open with a gentle swell
-    static let close = SpringSpec(response: 0.34, dampingRatio: 1.0)   // quicker, settles without bounce
-    static let morph = SpringSpec(response: 0.42, dampingRatio: 0.84)  // in-place resizes
+    static let open = SpringSpec(response: 0.50, dampingRatio: 0.64)   // liquid open: a clear, single swell
+    // Critically damped: closing must never shrink past the hardware notch (an undershoot there shows
+    // as a flicker at the notch's edge — measured at −0.44 pt with 0.88 damping).
+    static let close = SpringSpec(response: 0.36, dampingRatio: 1.0)
+    static let morph = SpringSpec(response: 0.46, dampingRatio: 0.78)  // in-place resizes with a small settle
 
     static func clampedSpeed(_ speed: Double) -> Double { max(0.5, min(2, speed)) }
 
@@ -32,7 +34,7 @@ enum IslandAnimation {
 
     /// Content arriving: waits only a beat for the glass, then settles without bounce.
     static func contentIn(reduceMotion: Bool) -> Animation {
-        reduceMotion ? .easeInOut(duration: 0.2) : .spring(duration: 0.3, bounce: 0).delay(0.05)
+        reduceMotion ? .easeInOut(duration: 0.2) : .smooth(duration: 0.3).delay(0.05) // the shape does the moving; content fades in
     }
 
     /// Content leaving: quick, but a spring rather than a cut, so it shrinks with the shape.
@@ -45,9 +47,8 @@ enum IslandAnimation {
     static func contentTransition(reduceMotion: Bool) -> AnyTransition {
         if reduceMotion { return .opacity }
         return .asymmetric(
-            insertion: .opacity.combined(with: .scale(scale: 0.96, anchor: .top))
-                .animation(contentIn(reduceMotion: false)),
-            removal: .opacity.combined(with: .scale(scale: 0.98, anchor: .top))
+            insertion: .opacity.animation(contentIn(reduceMotion: false)),
+            removal: .opacity
                 .animation(contentOut(reduceMotion: false)))
     }
 }

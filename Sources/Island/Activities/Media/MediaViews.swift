@@ -7,6 +7,8 @@ enum ImageCache {
     private static let artwork: NSCache<NSString, NSImage> = { let c = NSCache<NSString, NSImage>(); c.countLimit = 20; return c }()
     private static let icons: NSCache<NSString, NSImage> = { let c = NSCache<NSString, NSImage>(); c.countLimit = 200; return c }()
 
+    private static var missingApps: Set<String> = []
+
     static func artwork(for media: MediaActivity) -> NSImage? {
         guard let data = media.artwork else { return nil }
         let key = (media.artworkID ?? "\(data.count)-\(data.hashValue)") as NSString
@@ -18,7 +20,13 @@ enum ImageCache {
 
     static func appIcon(bundleID: String) -> NSImage? {
         if let img = icons.object(forKey: bundleID as NSString) { return img }
-        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else { return nil }
+        // Remember misses too: the artwork placeholder asks on every redraw.
+        guard !missingApps.contains(bundleID) else { return nil }
+        guard !bundleID.isEmpty, let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {
+            if missingApps.count > 64 { missingApps.removeAll() }
+            missingApps.insert(bundleID)
+            return nil
+        }
         let img = NSWorkspace.shared.icon(forFile: url.path)
         icons.setObject(img, forKey: bundleID as NSString)
         return img
@@ -47,14 +55,49 @@ struct ArtworkView: View {
                     .transition(.opacity.combined(with: .scale(scale: 0.96)))
                     .id(media.artworkID ?? media.trackKey)
             } else {
-                LinearGradient(colors: [Color(white: 0.28), Color(white: 0.14)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                Image(systemName: "music.note").font(.system(size: size * 0.42, weight: .semibold)).foregroundStyle(.white.opacity(0.6))
+                ArtworkPlaceholderView(media: media, size: size)
             }
         }
         .frame(width: size, height: size)
         .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
         .animation(.easeInOut(duration: 0.35), value: media.artworkID ?? media.trackKey)
         .accessibilityHidden(true)
+    }
+}
+
+/// Stands in for missing artwork: a muted gradient seeded from the record, with the source app's
+/// icon (or a music note) in the middle. Everything it draws is cached; it's purely decorative.
+private struct ArtworkPlaceholderView: View {
+    var media: MediaActivity
+    var size: CGFloat
+
+    private static let glyphFraction: CGFloat = 0.45
+    private static let noteFraction: CGFloat = 0.42
+
+    var body: some View {
+        let seed = ArtworkPlaceholder.seed(title: media.title, artist: media.artist, album: media.album)
+        ZStack {
+            LinearGradient(colors: ArtworkPalette.placeholder(seed: seed).map { Color(nsColor: $0) },
+                           startPoint: .topLeading, endPoint: .bottomTrailing)
+            glyph
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+
+    @ViewBuilder private var glyph: some View {
+        if let icon = ImageCache.appIcon(bundleID: media.sourceBundleID) {
+            Image(nsImage: icon)
+                .resizable()
+                .interpolation(.high)
+                .aspectRatio(contentMode: .fit)
+                .frame(width: size * Self.glyphFraction, height: size * Self.glyphFraction)
+                .shadow(color: .black.opacity(0.25), radius: size * 0.04, y: size * 0.015)
+        } else {
+            Image(systemName: "music.note")
+                .font(.system(size: size * Self.noteFraction, weight: .semibold))
+                .foregroundStyle(.white)
+        }
     }
 }
 

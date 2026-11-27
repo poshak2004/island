@@ -13,6 +13,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let args = CommandLine.arguments
         if args.contains("--self-test") {
             let settings = IslandSettings(defaults: UserDefaults(suiteName: "island.selftest.\(UUID().uuidString)")!)
+            // The self-test needs a visible window even when launched from a full-screen terminal.
+            settings.hideInFullScreen = false
             env = AppEnvironment(settings: settings)
             SelfTest(env: env).run()
             return

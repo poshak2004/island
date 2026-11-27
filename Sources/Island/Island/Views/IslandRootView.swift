@@ -77,12 +77,12 @@ private extension View {
     /// Crossfade a mounted layer on the shared content springs: leaving is quick, arriving follows.
     func layer(shown: Bool, reduceMotion: Bool) -> some View {
         self
+            // Swapped instantly here; the fade itself runs in the render server with the outline
+            // (IslandSurfaceView), so the main thread does no per-frame work while the Island morphs.
             .opacity(shown ? 1 : 0)
-            .scaleEffect(shown || reduceMotion ? 1 : 0.97, anchor: .top)
+            .animation(nil, value: shown)
             .allowsHitTesting(shown)
             .accessibilityHidden(!shown)
-            .animation(shown ? IslandAnimation.contentIn(reduceMotion: reduceMotion)
-                             : IslandAnimation.contentOut(reduceMotion: reduceMotion), value: shown)
     }
 }
 

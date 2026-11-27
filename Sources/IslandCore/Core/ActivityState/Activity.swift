@@ -77,6 +77,12 @@ public enum ActivityUpdate: Sendable {
 extension ActivityUpdate {
     /// Quiet mode: a new arrival may appear but not take over — `.high` becomes `.normal`. Critical
     /// alerts are unchanged, so anything that truly needs attention still gets it.
+    /// Quiets only the arrivals whose kind the user set to Quiet.
+    public func quieted(when isQuiet: (ActivityKind) -> Bool) -> ActivityUpdate {
+        guard case .upsert(let a) = self, isQuiet(a.kind) else { return self }
+        return quieted()
+    }
+
     public func quieted() -> ActivityUpdate {
         guard case .upsert(var a) = self, a.priority == .high else { return self }
         a.priority = .normal
