@@ -71,7 +71,7 @@ final class IslandViewModel {
         IslandMetrics(
             notchSize: geometry?.notchSize ?? CGSize(width: DisplayResolver.virtualNotchWidth, height: 32),
             hasNotch: geometry?.hasNotch ?? false,
-            scale: settings.islandScale,
+            scale: 1, // designed size, locked: other sizes broke the layout's proportions
             expandedCornerRadius: settings.cornerRadius
         )
     }
@@ -116,13 +116,20 @@ final class IslandViewModel {
         let rawGlass = reduceTransparency || (open && primaryPinsExpansion) ? 0 : (open || compactGlass ? settings.glassIntensity : 0)
         // Increase Contrast: keep a mostly dark backing so busy backgrounds can't wash out the text.
         let glass = highContrast ? min(rawGlass, Self.highContrastGlassCap) : rawGlass
+        // Clear Liquid Glass with Apple's dimming layer (~35% at full intensity) keeps the Island light
+        // and see-through while text stays legible; Increase Contrast keeps the denser regular glass.
+        let clear = glass > 0 && !highContrast && (open || compactGlass)
+        let dimming: CGFloat = glass == 0 ? 1 : (compactGlass && !open ? 0.42 - glass * 0.2
+            : clear ? 1 - glass * Self.clearGlassDimRange : 1 - glass * 0.45)
         return IslandSurfaceView.Geometry(
             width: size.width + 2 * ear, height: max(size.height, 0.5), earRadius: ear,
             bottomRadius: m.bottomCornerRadius(mode: mode, height: size.height), offsetX: horizontalOffset,
-            glass: glass, clearGlass: compactGlass, visible: mode != .idle || m.hasNotch, highContrast: highContrast)
+            glass: glass, clearGlass: clear, dimming: dimming, visible: mode != .idle || m.hasNotch, highContrast: highContrast)
     }
 
     static let highContrastGlassCap: CGFloat = 0.4
+    /// Full glass leaves 1 − 0.65 = 35% dimming: Apple's figure for clear glass over bright content.
+    static let clearGlassDimRange: CGFloat = 0.65
 
     var morphAnimation: Animation { IslandAnimation.morph(reduceMotion: reduceMotion, speed: settings.animationSpeed) }
 

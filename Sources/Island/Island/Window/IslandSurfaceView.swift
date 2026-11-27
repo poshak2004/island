@@ -19,6 +19,8 @@ final class IslandSurfaceView: NSView {
         var offsetX: CGFloat
         var glass: CGFloat          // 0 = solid black, 1 = full glass
         var clearGlass: Bool
+        /// Black layer between the glass and the content: 1 = solid, ~0.35 = Apple's clear-glass dim.
+        var dimming: CGFloat
         var visible: Bool
         var highContrast: Bool
     }
@@ -107,7 +109,7 @@ final class IslandSurfaceView: NSView {
         let canvas = CGRect(origin: .zero, size: bounds.size)
         let outline = shape(g, ears: true).path(in: canvas).cgPath
         let clip = shape(g, ears: false).path(in: canvas).cgPath
-        let tint: Float = g.visible ? Float(g.clearGlass ? 0.42 - g.glass * 0.2 : 1 - g.glass * 0.45) : 0
+        let tint: Float = g.visible ? Float(g.dimming) : 0
         let glassOpacity: Float = g.visible ? Float(min(1, g.glass * 1.6)) : 0
         let edgeOpacity: Float = g.visible ? Float(g.highContrast ? 1 : (g.glass > 0.001 ? 1 : 0)) : 0
         edgeLayer.strokeColor = g.highContrast ? NSColor.white.withAlphaComponent(0.85).cgColor : NSColor.white.withAlphaComponent(0.14 * g.glass).cgColor
@@ -216,8 +218,18 @@ final class IslandSurfaceView: NSView {
         a.duration = a.settlingDuration
         a.fillMode = .backwards
         a.isRemovedOnCompletion = true
+        // Run at the display's full rate (120 Hz on ProMotion). Left to the default, the outline could
+        // step at 60 fps beside smoother content — the jitter people noticed.
+        a.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: 120, preferred: 120)
         return a
     }
+
+    #if DEBUG
+    /// QA: the outline's on-screen (presentation) size right now, to measure motion smoothness.
+    var presentedOutlineSize: CGSize? {
+        (backgroundMask.presentation()?.path ?? backgroundMask.path)?.boundingBoxOfPath.size
+    }
+    #endif
 
     private static let noImplicitActions: [String: CAAction] = [
         "path": NSNull(), "opacity": NSNull(), "bounds": NSNull(), "position": NSNull(), "frame": NSNull(),

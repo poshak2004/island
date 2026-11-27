@@ -77,9 +77,10 @@ private extension View {
     /// Crossfade a mounted layer on the shared content springs: leaving is quick, arriving follows.
     func layer(shown: Bool, reduceMotion: Bool) -> some View {
         self
+            // Content rides rigidly with the shape and only fades: scaling or blurring it on a second
+            // spring made it drift against the outline (Apple's island content doesn't move on its own).
             .opacity(shown ? 1 : 0)
-            .scaleEffect(shown || reduceMotion ? 1 : 0.94, anchor: .top)
-            .blur(radius: shown || reduceMotion ? 0 : 4) // arrives into focus, like the iPhone's island
+            .blur(radius: shown || reduceMotion ? 0 : 3) // comes into focus; no scale, so it can't drift from the shape
             .allowsHitTesting(shown)
             .accessibilityHidden(!shown)
             .animation(shown ? IslandAnimation.contentIn(reduceMotion: reduceMotion)

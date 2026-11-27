@@ -163,9 +163,6 @@ struct AppearanceSettings: View {
                 LabeledContent("Glass intensity") {
                     HStack { Slider(value: $settings.glassIntensity, in: 0...1); Text("\(Int(settings.glassIntensity * 100))%").monospacedDigit().frame(width: 40) }
                 }
-                LabeledContent("Island size") {
-                    HStack { Slider(value: $settings.islandScale, in: 0.8...1.3); Text("\(Int(settings.islandScale * 100))%").monospacedDigit().frame(width: 40) }
-                }
                 Toggle("See-through compact Island", isOn: $settings.compactGlass)
                     .help("Off matches Apple's Dynamic Island: solid black, so it reads as part of the hardware.")
                 Toggle("Show song title in compact Island", isOn: $settings.compactShowsTitle)

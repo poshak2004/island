@@ -62,6 +62,7 @@ final class DebugRemote {
                 case "dump": DebugRemote.dump(env)
                 case "settings": env.commands.perform(.openSettings)
                 case "snapsettings": SettingsSnapshotter.renderAll(env: env)
+                case "samplemorph": MorphSampler.run(env: env)
                 case let c where c.hasPrefix("snapwindow:"):
                     SettingsSnapshotter.renderWindow(env: env, paneName: String(c.dropFirst("snapwindow:".count)))
                 case let c where c.hasPrefix("snapisland:"):
@@ -209,6 +210,32 @@ enum SettingsSnapshotter {
         let data = rep.representation(using: .png, properties: [:])
         try? data?.write(to: directory.appendingPathComponent("\(name).png"))
         window.contentView = nil
+    }
+}
+
+/// DEBUG: samples the outline's presented size every ~8 ms through an open and a close, and writes
+/// "t height width" lines, so motion smoothness (monotonic? overshoot? steps?) can be measured.
+@MainActor
+enum MorphSampler {
+    static let file = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Caches/island-qa/morph-samples.txt")
+
+    static func run(env: AppEnvironment) {
+        var lines: [String] = []
+        let start = CACurrentMediaTime()
+        let timer = Timer(timeInterval: 1.0 / 120, repeats: true) { _ in
+            MainActor.assumeIsolated {
+                guard let s = env.window.surface.presentedOutlineSize else { return }
+                lines.append(String(format: "%.4f %.2f %.2f", CACurrentMediaTime() - start, s.height, s.width))
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { env.island.expand() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { env.island.collapse() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.8) {
+            timer.invalidate()
+            try? lines.joined(separator: "\n").write(to: file, atomically: true, encoding: .utf8)
+        }
     }
 }
 

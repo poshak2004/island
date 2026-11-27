@@ -13,8 +13,10 @@ enum IslandAnimation {
     }
 
     /// Outline springs (also used by `IslandSurfaceView`).
-    static let open = SpringSpec(response: 0.52, dampingRatio: 0.68)   // liquid open: a visible, single swell
-    static let close = SpringSpec(response: 0.40, dampingRatio: 0.88)  // quicker, with a soft settle
+    static let open = SpringSpec(response: 0.50, dampingRatio: 0.64)   // liquid open: a clear, single swell
+    // Critically damped: closing must never shrink past the hardware notch (an undershoot there shows
+    // as a flicker at the notch's edge — measured at −0.44 pt with 0.88 damping).
+    static let close = SpringSpec(response: 0.36, dampingRatio: 1.0)
     static let morph = SpringSpec(response: 0.46, dampingRatio: 0.78)  // in-place resizes with a small settle
 
     static func clampedSpeed(_ speed: Double) -> Double { max(0.5, min(2, speed)) }
@@ -32,7 +34,7 @@ enum IslandAnimation {
 
     /// Content arriving: waits only a beat for the glass, then settles without bounce.
     static func contentIn(reduceMotion: Bool) -> Animation {
-        reduceMotion ? .easeInOut(duration: 0.2) : .spring(duration: 0.42, bounce: 0.2).delay(0.04)
+        reduceMotion ? .easeInOut(duration: 0.2) : .smooth(duration: 0.3).delay(0.05) // the shape does the moving; content fades in
     }
 
     /// Content leaving: quick, but a spring rather than a cut, so it shrinks with the shape.
@@ -45,22 +47,8 @@ enum IslandAnimation {
     static func contentTransition(reduceMotion: Bool) -> AnyTransition {
         if reduceMotion { return .opacity }
         return .asymmetric(
-            // Apple's own content-replace: content comes into focus as it arrives.
-            insertion: .opacity.combined(with: .focus).combined(with: .scale(scale: 0.94, anchor: .top))
-                .animation(contentIn(reduceMotion: false)),
-            removal: .opacity.combined(with: .scale(scale: 0.98, anchor: .top))
+            insertion: .opacity.animation(contentIn(reduceMotion: false)),
+            removal: .opacity
                 .animation(contentOut(reduceMotion: false)))
-    }
-}
-
-/// Content sharpening into place as it arrives (and softening as it leaves).
-private struct FocusModifier: ViewModifier {
-    let radius: CGFloat
-    func body(content: Content) -> some View { content.blur(radius: radius) }
-}
-
-extension AnyTransition {
-    static var focus: AnyTransition {
-        .modifier(active: FocusModifier(radius: 5), identity: FocusModifier(radius: 0))
     }
 }
