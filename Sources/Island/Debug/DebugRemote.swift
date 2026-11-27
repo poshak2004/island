@@ -157,8 +157,9 @@ enum SettingsSnapshotter {
             let scratch = IslandSettings(defaults: suite)
             scratch.experimentalFeatures = experimental
             scratch.aiProvider = experimental ? .anthropic : .none
-            for pane in SettingsView.Pane.allCases {
-                let view = SettingsView(settings: scratch, env: env, initialPane: pane)
+            for pane in SettingsPane.allCases {
+                let view = pane.view(settings: scratch, env: env)
+                    .frame(width: SettingsPane.width, height: pane.height)
                     .environment(\.colorScheme, .dark)
                 write(view, name: "\(experimental ? "exp-on" : "exp-off")-\(pane.rawValue.lowercased())")
             }
@@ -171,8 +172,8 @@ enum SettingsSnapshotter {
     /// DEBUG: the real Settings window (title bar and toolbar included), offscreen, to check layout.
     static func renderWindow(env: AppEnvironment, paneName: String) {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let pane = SettingsView.Pane.allCases.first { $0.rawValue.lowercased() == paneName.lowercased() } ?? .general
-        let w = SettingsWindowController.makeWindow(SettingsView(settings: env.settings, env: env, initialPane: pane))
+        let pane = SettingsPane.allCases.first { $0.rawValue.lowercased() == paneName.lowercased() } ?? .general
+        let w = SettingsWindowController.makeWindow(settings: env.settings, env: env, selecting: pane)
         w.setFrameOrigin(NSPoint(x: -10_000, y: -10_000))
         w.orderFront(nil)
         RunLoop.main.run(until: Date().addingTimeInterval(0.6))
@@ -193,7 +194,7 @@ enum SettingsSnapshotter {
     }
 
     private static func write(_ view: some View, name: String) {
-        let size = NSSize(width: 760, height: 560)
+        let size = NSSize(width: 600, height: 640)
         let host = NSHostingView(rootView: view)
         host.frame = NSRect(origin: .zero, size: size)
         let window = NSWindow(contentRect: host.frame, styleMask: [.titled], backing: .buffered, defer: false)

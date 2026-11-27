@@ -2,192 +2,7 @@ import AppKit
 import IslandCore
 import SwiftUI
 
-struct SettingsView: View {
-    @Bindable var settings: IslandSettings
-    let env: AppEnvironment
-    @State private var pane: Pane
-
-    init(settings: IslandSettings, env: AppEnvironment, initialPane: Pane = .general) {
-        self.settings = settings
-        self.env = env
-        _pane = State(initialValue: initialPane)
-    }
-
-    enum Pane: String, CaseIterable, Identifiable {
-        case general = "General", home = "Home", appearance = "Appearance", activities = "Activities", teleprompter = "Teleprompter"
-        case search = "Search", automation = "Automation", accessibility = "Accessibility", advanced = "Advanced"
-        var id: String { rawValue }
-        /// System Settings–style colour for the pane's icon tile.
-        var tint: Color {
-            switch self {
-            case .general, .advanced: Color(nsColor: .systemGray)
-            case .home: Color(nsColor: .systemBlue)
-            case .appearance: Color(nsColor: .systemPurple)
-            case .activities: Color(nsColor: .systemOrange)
-            case .teleprompter: Color(nsColor: .systemMint)
-            case .search: Color(nsColor: .systemIndigo)
-            case .automation: Color(nsColor: .systemYellow)
-            case .accessibility: Color(nsColor: .systemBlue)
-            }
-        }
-        /// One line under the pane's title.
-        var summary: String {
-            switch self {
-            case .general: "Startup, updates, display and how the Island responds."
-            case .home: "Your pins and suggestions on Home."
-            case .appearance: "Glass, size and shape of the Island."
-            case .activities: "What shows in the Island, and whether it pops up."
-            case .teleprompter: "Your script, reading speed and calls."
-            case .search: "What \(IslandShortcut.defaultSearch.display) finds, and how."
-            case .automation: "Rules that act on Island events."
-            case .accessibility: "Motion, transparency and contrast."
-            case .advanced: "Experimental features, developer tools and reset."
-            }
-        }
-        var symbol: String {
-            switch self {
-            case .general: "gearshape"
-            case .home: "house"
-            case .appearance: "paintbrush"
-            case .activities: "square.stack.3d.up"
-            case .teleprompter: "text.alignleft"
-            case .search: "magnifyingglass"
-            case .automation: "bolt.horizontal"
-            case .accessibility: "accessibility"
-            case .advanced: "wrench.and.screwdriver"
-            }
-        }
-    }
-
-    var body: some View {
-        NavigationSplitView {
-            List(Pane.allCases.filter { $0 != .automation || settings.experimentalFeatures }, selection: $pane) { p in
-                Label {
-                    Text(p.rawValue)
-                } icon: {
-                    PaneIcon(pane: p, size: 20)
-                }
-                .tag(p)
-            }
-            .navigationSplitViewColumnWidth(190)
-        } detail: {
-            VStack(spacing: 0) {
-                PaneHeader(pane: pane)
-                Group {
-                switch pane {
-                case .general: GeneralSettings(settings: settings, env: env)
-                case .home: HomeSettings(settings: settings, env: env)
-                case .appearance: AppearanceSettings(settings: settings)
-                case .activities: ActivitySettings(settings: settings, env: env)
-                case .teleprompter: TeleprompterSettings(settings: settings, env: env)
-                case .search: SearchSettings(settings: settings, env: env)
-                case .automation: AutomationSettings(env: env)
-                case .accessibility: AccessibilitySettings(settings: settings, env: env)
-                case .advanced: AdvancedSettings(settings: settings, env: env)
-                }
-                }
-            }
-        }
-        .frame(minWidth: 760, minHeight: 540)
-        .onChange(of: settings.experimentalFeatures) { _, on in if !on, pane == .automation { pane = .advanced } }
-    }
-}
-
-private struct GeneralSettings: View {
-    @Bindable var settings: IslandSettings
-    let env: AppEnvironment
-    @State private var loginError: String?
-
-    var body: some View {
-        Form {
-            Toggle("Enable Island", isOn: $settings.islandEnabled)
-            Toggle("Launch at login", isOn: Binding(get: { settings.launchAtLogin }, set: { v in
-                loginError = LaunchAtLogin.set(v)
-                settings.launchAtLogin = loginError == nil ? v : LaunchAtLogin.isEnabled
-            }))
-            if let loginError { Text(loginError).font(.caption).foregroundStyle(.red) }
-            UpdatesRow(settings: settings, updates: env.updates)
-            Picker("Display", selection: $settings.display) {
-                Text("Automatic (notched display first)").tag(DisplaySelection.automatic)
-                Text("Main display").tag(DisplaySelection.main)
-                ForEach(env.display.screens, id: \.id) { s in
-                    Text(s.name).tag(DisplaySelection.specific(name: s.name))
-                }
-            }
-            if let g = env.display.geometry {
-                LabeledContent("Current", value: "\(g.screen.name) · \(g.hasNotch ? "notch \(Int(g.notchSize.width))×\(Int(g.notchSize.height))pt" : "no notch")")
-                    .font(.caption)
-            }
-            Toggle(isOn: $settings.hideInFullScreen) {
-                Text("Hide in full screen")
-                Text("Steps aside while a video, presentation or game fills the screen.")
-            }
-            Section("Behavior") { BehaviorSection(settings: settings) }
-        }
-        .formStyle(.grouped)
-    }
-}
-
-private struct AppearanceSettings: View {
-    @Bindable var settings: IslandSettings
-    var body: some View {
-        Form {
-            Section { IslandPreview(settings: settings) }
-            Section {
-                LabeledContent("Glass intensity") {
-                    HStack { Slider(value: $settings.glassIntensity, in: 0...1); Text("\(Int(settings.glassIntensity * 100))%").monospacedDigit().frame(width: 40) }
-                }
-                LabeledContent("Island size") {
-                    HStack { Slider(value: $settings.islandScale, in: 0.8...1.3); Text("\(Int(settings.islandScale * 100))%").monospacedDigit().frame(width: 40) }
-                }
-                Toggle("See-through compact Island", isOn: $settings.compactGlass)
-                    .help("Off matches Apple's Dynamic Island: solid black, so it reads as part of the hardware.")
-                Toggle("Show song title in compact Island", isOn: $settings.compactShowsTitle)
-                LabeledContent("Corner radius") {
-                    HStack { Slider(value: $settings.cornerRadius, in: 12...48); Text("\(Int(settings.cornerRadius))").monospacedDigit().frame(width: 40) }
-                }
-            } footer: {
-                Text("Glass intensity controls how see-through the Island is. The empty Island stays black so it disappears into the notch. Liquid Glass is used on macOS 26 and later.")
-            }
-        }
-        .formStyle(.grouped)
-    }
-}
-
-/// Rows shown in General › Behavior (was its own pane).
-private struct BehaviorSection: View {
-    @Bindable var settings: IslandSettings
-    var body: some View {
-        Group {
-            LabeledContent("Open Island") { ShortcutRecorder(shortcut: $settings.islandShortcut) }
-            Toggle(isOn: $settings.quietMode) {
-                Text("Quiet mode")
-                Text("Nothing opens by itself and new events don't take over. Critical alerts still show.")
-            }
-            Toggle("Expand on hover", isOn: $settings.hoverExpansion)
-            if settings.hoverExpansion {
-                LabeledContent("Hover delay") {
-                    HStack { Slider(value: $settings.hoverDelay, in: 0...0.6); Text(String(format: "%.2fs", settings.hoverDelay)).monospacedDigit().frame(width: 48) }
-                }
-            }
-            LabeledContent("Stay open after pointer leaves") {
-                HStack { Slider(value: $settings.collapseDelay, in: 0.1...2); Text(String(format: "%.1fs", settings.collapseDelay)).monospacedDigit().frame(width: 48) }
-            }
-            Toggle("Auto-collapse after clicking", isOn: $settings.autoCollapse)
-            if settings.autoCollapse {
-                LabeledContent("Collapse after") {
-                    HStack { Slider(value: $settings.autoCollapseDelay, in: 1...15); Text("\(Int(settings.autoCollapseDelay))s").monospacedDigit().frame(width: 48) }
-                }
-            }
-            LabeledContent("Animation speed") {
-                HStack { Slider(value: $settings.animationSpeed, in: 0.5...2); Text(String(format: "%.1f×", settings.animationSpeed)).monospacedDigit().frame(width: 48) }
-            }
-            Toggle("Trackpad haptics on expand", isOn: $settings.hapticFeedback)
-        }
-    }
-}
-
-private struct ActivitySettings: View {
+struct ActivitySettings: View {
     @Bindable var settings: IslandSettings
     let env: AppEnvironment
     static let configurable: [(ActivityKind, String)] = [
@@ -208,7 +23,7 @@ private struct ActivitySettings: View {
 
     var body: some View {
         Form {
-            Section("Activities") {
+            Section {
                 ForEach(Self.configurable, id: \.0) { kind, detail in
                     HStack(spacing: 12) {
                         VStack(alignment: .leading) { Text(kind.displayName); Text(detail).font(.caption).foregroundStyle(.secondary) }
@@ -217,7 +32,8 @@ private struct ActivitySettings: View {
                             Text("Pop Up").tag(false)
                             Text("Quiet").tag(true)
                         }
-                        .pickerStyle(.segmented)
+                        .pickerStyle(.menu)
+                        .buttonStyle(.borderless)
                         .labelsHidden()
                         .fixedSize()
                         .disabled(!settings.enabledKinds.contains(kind))
@@ -245,62 +61,8 @@ private struct ActivitySettings: View {
     }
 }
 
-private struct SearchSettings: View {
-    @Bindable var settings: IslandSettings
-    let env: AppEnvironment
-    @State private var braveKey = Keychain.get(account: "brave-search") ?? ""
-
-    var body: some View {
-        Form {
-            Toggle("Enable search", isOn: $settings.searchEnabled)
-            LabeledContent("Shortcut") { ShortcutRecorder(shortcut: $settings.searchShortcut) }
-            if let conflict = shortcutConflict {
-                Label(conflict, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            }
-            Toggle("Files (Spotlight)", isOn: $settings.fileSearchEnabled)
-            if settings.experimentalFeatures {
-                Toggle("Web", isOn: $settings.webSearchEnabled)
-            }
-            if settings.effectiveWebSearch {
-                Section("Web providers") {
-                    providerToggle("wikipedia", "Wikipedia (free, no key)")
-                    providerToggle("duckduckgo", "DuckDuckGo Instant Answers (free, no key)")
-                    providerToggle("brave", "Brave Search API (needs key)")
-                    if settings.webSearchProviders.contains("brave") {
-                        SecureField("Brave Search API key", text: $braveKey, prompt: Text("Paste your key"))
-                            .onSubmit { try? Keychain.set(braveKey, account: "brave-search") }
-                            .onDisappear { try? Keychain.set(braveKey, account: "brave-search") }
-                    }
-                }
-            }
-            if settings.experimentalFeatures { AISection(settings: settings) }
-        }
-        .formStyle(.grouped)
-    }
-
-    /// macOS refuses a hot key another app already owns; say so instead of failing silently.
-    private var shortcutConflict: String? {
-        guard settings.searchEnabled, settings.islandEnabled else { return nil }
-        if let error = env.features.hotKey?.lastError, error != noErr {
-            return "\(settings.searchShortcut.display) is already used by another app or macOS. Pick another shortcut."
-        }
-        let running = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
-        let owners = ShortcutConflicts.likelyOwners(of: settings.searchShortcut, running: running)
-        guard !owners.isEmpty else { return nil }
-        return "\(owners.joined(separator: " and ")) also uses \(settings.searchShortcut.display) by default. If search doesn't open, change one of the shortcuts."
-    }
-
-    private func providerToggle(_ id: String, _ title: String) -> some View {
-        Toggle(title, isOn: Binding(get: { settings.webSearchProviders.contains(id) }, set: { on in
-            if on { settings.webSearchProviders.insert(id) } else { settings.webSearchProviders.remove(id) }
-        }))
-    }
-}
-
 /// Search › AI answers (Experimental; was its own pane).
-private struct AISection: View {
+struct AISection: View {
     @Bindable var settings: IslandSettings
     @State private var key = ""
 
@@ -327,53 +89,6 @@ private struct AISection: View {
     }
 
     private func save() { try? Keychain.set(key, account: settings.aiProvider.rawValue) }
-}
-
-private struct AccessibilitySettings: View {
-    @Bindable var settings: IslandSettings
-    let env: AppEnvironment
-    var body: some View {
-        Form {
-            Section {
-                Toggle("Reduce motion", isOn: $settings.forceReduceMotion)
-                Toggle("Reduce transparency", isOn: $settings.forceReduceTransparency)
-                Toggle("Increase contrast", isOn: $settings.forceHighContrast)
-            } footer: {
-                Text("Island always follows the matching System Settings › Accessibility › Display options. These switches force them on for Island only.")
-            }
-            Section("System") {
-                LabeledContent("Reduce motion", value: env.accessibility.reduceMotion ? "On" : "Off")
-                LabeledContent("Reduce transparency", value: env.accessibility.reduceTransparency ? "On" : "Off")
-                LabeledContent("Increase contrast", value: env.accessibility.increaseContrast ? "On" : "Off")
-            }
-        }
-        .formStyle(.grouped)
-    }
-}
-
-private struct AdvancedSettings: View {
-    @Bindable var settings: IslandSettings
-    let env: AppEnvironment
-    var body: some View {
-        Form {
-            Section {
-                Toggle("Experimental features", isOn: $settings.experimentalFeatures)
-            } footer: {
-                Text("Web results in Search, AI answers, and automation rules. Still being refined.")
-                    .foregroundStyle(.secondary)
-            }
-            #if DEBUG
-            Section("Developer") {
-                Toggle("Debug mode", isOn: $settings.debugMode)
-                Toggle("Performance overlay", isOn: $settings.performanceOverlay)
-                Button("Open Debug Panel") { env.showDebugPanel() }
-            }
-            #endif
-            Button("Reset all settings", role: .destructive) { settings.resetToDefaults() }
-            LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev")
-        }
-        .formStyle(.grouped)
-    }
 }
 
 /// Click, then press the new key combination (must include ⌘, ⌥ or ⌃).
@@ -407,36 +122,8 @@ struct ShortcutRecorder: View {
     }
 }
 
-@MainActor
-final class SettingsWindowController {
-    private var window: NSWindow?
-
-    static let contentSize = NSSize(width: 820, height: 600)
-
-    static func makeWindow(_ root: SettingsView) -> NSWindow {
-        let w = NSWindow(contentViewController: NSHostingController(rootView: root))
-        w.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
-        w.title = "Island Settings"
-        w.toolbarStyle = .unified
-        w.isReleasedWhenClosed = false
-        w.setContentSize(contentSize)
-        return w
-    }
-    func show(env: AppEnvironment) {
-        if window == nil {
-            // A hosting *controller* lets SwiftUI manage the toolbar and safe areas, so content never
-            // scrolls under the title bar (a bare NSHostingView in a full-size-content window did).
-            let w = Self.makeWindow(SettingsView(settings: env.settings, env: env))
-            w.center()
-            window = w
-        }
-        NSApp.activate(ignoringOtherApps: true)
-        window?.makeKeyAndOrderFront(nil)
-    }
-}
-
 /// Settings › General: automatic checks, Check Now, and where things stand.
-private struct UpdatesRow: View {
+struct UpdatesRow: View {
     @Bindable var settings: IslandSettings
     let updates: UpdateService
 
@@ -468,116 +155,27 @@ private struct UpdatesRow: View {
     }
 }
 
-// MARK: - Pane chrome (System Settings style)
-
-/// A pane's icon: a white glyph on a coloured rounded square, like System Settings.
-struct PaneIcon: View {
-    let pane: SettingsView.Pane
-    var size: CGFloat
-
-    var body: some View {
-        Image(systemName: pane.symbol)
-            .font(.system(size: size * 0.55, weight: .semibold))
-            .foregroundStyle(.white)
-            .frame(width: size, height: size)
-            .background(
-                RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
-                    .fill(pane.tint.gradient)
-            )
-            .accessibilityHidden(true)
-    }
-}
-
-/// The top of every pane: its icon, title and what it's for.
-private struct PaneHeader: View {
-    let pane: SettingsView.Pane
-
-    var body: some View {
-        HStack(spacing: 14) {
-            PaneIcon(pane: pane, size: 44)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(pane.rawValue).font(.title2.weight(.semibold))
-                Text(pane.summary).font(.callout).foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 24)
-        .padding(.top, 18)
-        .padding(.bottom, 4)
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isHeader)
-    }
-}
-
-/// Appearance › a live, to-scale sketch of the Island over a wallpaper, so each slider shows its effect.
-private struct IslandPreview: View {
+struct AppearanceSettings: View {
     @Bindable var settings: IslandSettings
-    @State private var expanded = true
-
-    private static let notch = CGSize(width: 90, height: 16)
-
     var body: some View {
-        VStack(spacing: 10) {
-            ZStack(alignment: .top) {
-                LinearGradient(colors: [Color(nsColor: .systemIndigo), Color(nsColor: .systemPink), Color(nsColor: .systemOrange)],
-                               startPoint: .topLeading, endPoint: .bottomTrailing)
-                island
-                    .padding(.top, 0)
-                    .animation(.spring(duration: 0.35, bounce: 0.15), value: expanded)
-                    .animation(.smooth(duration: 0.2), value: settings.glassIntensity)
-            }
-            .frame(height: 150)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            Picker("Preview", selection: $expanded) {
-                Text("Compact").tag(false)
-                Text("Expanded").tag(true)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(width: 220)
-        }
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Island preview")
-    }
-
-    private var scale: CGFloat { CGFloat(settings.islandScale) }
-
-    @ViewBuilder private var island: some View {
-        let size = expanded ? CGSize(width: 250 * scale, height: 82 * scale) : CGSize(width: 150 * scale, height: Self.notch.height)
-        let radius = expanded ? CGFloat(settings.cornerRadius) * 0.55 * scale : Self.notch.height / 2
-        let glassy = expanded || settings.compactGlass
-        let shape = UnevenRoundedRectangle(bottomLeadingRadius: radius, bottomTrailingRadius: radius, style: .continuous)
-        ZStack {
-            shape.fill(.ultraThinMaterial).opacity(glassy ? 1 : 0)
-            shape.fill(Color.black.opacity(glassy ? 1 - settings.glassIntensity * 0.45 : 1))
-            content(expanded: expanded).padding(.horizontal, 12)
-        }
-        .frame(width: size.width, height: size.height)
-        .environment(\.colorScheme, .dark)
-    }
-
-    @ViewBuilder private func content(expanded: Bool) -> some View {
-        if expanded {
-            HStack(spacing: 10) {
-                RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color(nsColor: .systemPink).gradient)
-                    .frame(width: 34 * scale, height: 34 * scale)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Midnight City").font(.system(size: 11 * scale, weight: .semibold)).foregroundStyle(.white)
-                    Text("M83").font(.system(size: 10 * scale)).foregroundStyle(.white.opacity(0.7))
+        Form {
+            Section {
+                LabeledContent("Glass intensity") {
+                    HStack { Slider(value: $settings.glassIntensity, in: 0...1); Text("\(Int(settings.glassIntensity * 100))%").monospacedDigit().frame(width: 40) }
                 }
-                Spacer(minLength: 0)
-                Image(systemName: "pause.fill").font(.system(size: 12 * scale, weight: .semibold)).foregroundStyle(.white)
-            }
-            .padding(.top, Self.notch.height)
-        } else {
-            HStack {
-                Image(systemName: "music.note").font(.system(size: 8, weight: .bold)).foregroundStyle(.white)
-                if settings.compactShowsTitle { Text("Midnight City").font(.system(size: 7, weight: .semibold)).foregroundStyle(.white).lineLimit(1) }
-                Spacer()
-                Image(systemName: "waveform").font(.system(size: 8, weight: .bold)).foregroundStyle(Color(nsColor: .systemPink))
+                LabeledContent("Island size") {
+                    HStack { Slider(value: $settings.islandScale, in: 0.8...1.3); Text("\(Int(settings.islandScale * 100))%").monospacedDigit().frame(width: 40) }
+                }
+                Toggle("See-through compact Island", isOn: $settings.compactGlass)
+                    .help("Off matches Apple's Dynamic Island: solid black, so it reads as part of the hardware.")
+                Toggle("Show song title in compact Island", isOn: $settings.compactShowsTitle)
+                LabeledContent("Corner radius") {
+                    HStack { Slider(value: $settings.cornerRadius, in: 12...48); Text("\(Int(settings.cornerRadius))").monospacedDigit().frame(width: 40) }
+                }
+            } footer: {
+                Text("Glass intensity controls how see-through the Island is. The empty Island stays black so it disappears into the notch. Liquid Glass is used on macOS 26 and later.")
             }
         }
+        .formStyle(.grouped)
     }
 }
-

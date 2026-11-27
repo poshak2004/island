@@ -53,7 +53,8 @@ struct TeleprompterSettings: View {
                     }
                     Button("Open File…") { openFile() }
                         .help("Load a plain text or Markdown file. You can also drop one onto the script.")
-                    Button("Paste from Clipboard") { pasteClipboard() }
+                    Button("Paste") { pasteClipboard() }
+                        .help("Paste from Clipboard")
                     Button(env.teleprompter.isActive ? "Restart in Island" : "Start in Island") { start() }
                         .keyboardShortcut(.defaultAction)
                         .disabled(wordCount == 0)

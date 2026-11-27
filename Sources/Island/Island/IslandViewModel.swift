@@ -92,9 +92,17 @@ final class IslandViewModel {
     }
 
 
+    // HIG › Settings: follow the system's accessibility settings rather than duplicate them. The
+    // force switches remain only for QA in debug builds.
+    #if DEBUG
     var reduceMotion: Bool { settings.forceReduceMotion || accessibility.reduceMotion }
     var reduceTransparency: Bool { settings.forceReduceTransparency || accessibility.reduceTransparency }
     var highContrast: Bool { settings.forceHighContrast || accessibility.increaseContrast }
+    #else
+    var reduceMotion: Bool { accessibility.reduceMotion }
+    var reduceTransparency: Bool { accessibility.reduceTransparency }
+    var highContrast: Bool { accessibility.increaseContrast }
+    #endif
 
     /// Everything the Core Animation surface needs to draw the current state.
     var surfaceGeometry: IslandSurfaceView.Geometry {
